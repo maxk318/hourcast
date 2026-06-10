@@ -1,0 +1,14 @@
+# Pebble build output
+build/
+.lock-waf*
+
+# JS deps
+node_modules/
+
+# OS / editor
+*.log
+.DS_Store
+desktop.ini
+
+# asset-generator preview output
+tools/preview/

@@ -1,0 +1,55 @@
+[
+  { "type": "heading", "defaultValue": "HourCast" },
+  {
+    "type": "section",
+    "items": [
+      { "type": "heading", "defaultValue": "Display" },
+      {
+        "type": "select",
+        "messageKey": "DISPLAY_MODE",
+        "label": "Inner Ring",
+        "defaultValue": "1",
+        "description": "What to show on the inner ring. Clock Numbers: hour numerals. Hashes: tick marks with larger weather icons. Temperature: hourly temps, uncovering the weather icons and moons.",
+        "options": [
+          { "label": "Clock Numbers", "value": "0" },
+          { "label": "Hashes", "value": "1" },
+          { "label": "Temperature", "value": "2" }
+        ]
+      }
+    ]
+  },
+  {
+    "type": "section",
+    "items": [
+      { "type": "heading", "defaultValue": "Location" },
+      {
+        "type": "input",
+        "messageKey": "CURRENT_LOC",
+        "id": "currentLoc",
+        "label": "Current location",
+        "defaultValue": "Updates after a weather refresh",
+        "attributes": { "readonly": "readonly" }
+      },
+      {
+        "type": "toggle",
+        "messageKey": "USE_MANUAL_LOC",
+        "label": "Enter coordinates manually",
+        "description": "Off uses your phone's GPS. On lets you type a fixed latitude and longitude below.",
+        "defaultValue": false
+      },
+      {
+        "type": "input",
+        "messageKey": "MANUAL_LAT",
+        "label": "Latitude",
+        "attributes": { "placeholder": "e.g. 38.8816", "type": "text", "inputmode": "decimal" }
+      },
+      {
+        "type": "input",
+        "messageKey": "MANUAL_LON",
+        "label": "Longitude",
+        "attributes": { "placeholder": "e.g. -77.0910", "type": "text", "inputmode": "decimal" }
+      }
+    ]
+  },
+  { "type": "submit", "defaultValue": "Save" }
+]

@@ -1,0 +1,368 @@
+{
+  "name": "hourcast",
+  "author": "Max Kelly",
+  "version": "2.2.0",
+  "keywords": [
+    "pebble-app"
+  ],
+  "private": true,
+  "dependencies": {
+    "pebble-clay": "^1.0.4"
+  },
+  "pebble": {
+    "displayName": "HourCast",
+    "uuid": "793e4e77-b772-4060-adca-ab6107d8f250",
+    "sdkVersion": "3",
+    "enableMultiJS": true,
+    "capabilities": [
+      "location",
+      "configurable"
+    ],
+    "targetPlatforms": [
+      "emery"
+    ],
+    "watchapp": {
+      "watchface": true
+    },
+    "messageKeys": [
+      "ICON_0",
+      "ICON_1",
+      "ICON_2",
+      "ICON_3",
+      "ICON_4",
+      "ICON_5",
+      "ICON_6",
+      "ICON_7",
+      "ICON_8",
+      "ICON_9",
+      "ICON_10",
+      "ICON_11",
+      "TEMP_0",
+      "TEMP_1",
+      "TEMP_2",
+      "TEMP_3",
+      "TEMP_4",
+      "TEMP_5",
+      "TEMP_6",
+      "TEMP_7",
+      "TEMP_8",
+      "TEMP_9",
+      "TEMP_10",
+      "TEMP_11",
+      "CUR_ICON",
+      "CUR_TEMP",
+      "START_K",
+      "MOON_PHASE",
+      "SUNRISE_K",
+      "SUNRISE_STR",
+      "SUNSET_K",
+      "SUNSET_STR",
+      "DISPLAY_MODE",
+      "USE_MANUAL_LOC",
+      "MANUAL_LAT",
+      "MANUAL_LON",
+      "CURRENT_LOC",
+      "REQUEST_WEATHER"
+    ],
+    "resources": {
+      "media": [
+        {
+          "type": "bitmap",
+          "name": "MENU_ICON",
+          "file": "icons/menu_icon.png",
+          "menuIcon": true
+        },
+        {
+          "type": "bitmap",
+          "name": "WX_CLEAR_DAY",
+          "file": "icons/wx_clear_day.png"
+        },
+        {
+          "type": "bitmap",
+          "name": "WX_CLEAR_DAY_LG",
+          "file": "icons/wx_clear_day_lg.png"
+        },
+        {
+          "type": "bitmap",
+          "name": "WX_CLEAR_DAY_XL",
+          "file": "icons/wx_clear_day_xl.png"
+        },
+        {
+          "type": "bitmap",
+          "name": "MOON_RING_0",
+          "file": "icons/moon_ring_00.png"
+        },
+        {
+          "type": "bitmap",
+          "name": "MOON_RING_1",
+          "file": "icons/moon_ring_01.png"
+        },
+        {
+          "type": "bitmap",
+          "name": "MOON_RING_2",
+          "file": "icons/moon_ring_02.png"
+        },
+        {
+          "type": "bitmap",
+          "name": "MOON_RING_3",
+          "file": "icons/moon_ring_03.png"
+        },
+        {
+          "type": "bitmap",
+          "name": "MOON_RING_4",
+          "file": "icons/moon_ring_04.png"
+        },
+        {
+          "type": "bitmap",
+          "name": "MOON_RING_5",
+          "file": "icons/moon_ring_05.png"
+        },
+        {
+          "type": "bitmap",
+          "name": "MOON_RING_6",
+          "file": "icons/moon_ring_06.png"
+        },
+        {
+          "type": "bitmap",
+          "name": "MOON_RING_7",
+          "file": "icons/moon_ring_07.png"
+        },
+        {
+          "type": "bitmap",
+          "name": "MOON_RING_8",
+          "file": "icons/moon_ring_08.png"
+        },
+        {
+          "type": "bitmap",
+          "name": "MOON_RING_9",
+          "file": "icons/moon_ring_09.png"
+        },
+        {
+          "type": "bitmap",
+          "name": "MOON_XL_0",
+          "file": "icons/moon_xl_00.png"
+        },
+        {
+          "type": "bitmap",
+          "name": "MOON_XL_1",
+          "file": "icons/moon_xl_01.png"
+        },
+        {
+          "type": "bitmap",
+          "name": "MOON_XL_2",
+          "file": "icons/moon_xl_02.png"
+        },
+        {
+          "type": "bitmap",
+          "name": "MOON_XL_3",
+          "file": "icons/moon_xl_03.png"
+        },
+        {
+          "type": "bitmap",
+          "name": "MOON_XL_4",
+          "file": "icons/moon_xl_04.png"
+        },
+        {
+          "type": "bitmap",
+          "name": "MOON_XL_5",
+          "file": "icons/moon_xl_05.png"
+        },
+        {
+          "type": "bitmap",
+          "name": "MOON_XL_6",
+          "file": "icons/moon_xl_06.png"
+        },
+        {
+          "type": "bitmap",
+          "name": "MOON_XL_7",
+          "file": "icons/moon_xl_07.png"
+        },
+        {
+          "type": "bitmap",
+          "name": "MOON_XL_8",
+          "file": "icons/moon_xl_08.png"
+        },
+        {
+          "type": "bitmap",
+          "name": "MOON_XL_9",
+          "file": "icons/moon_xl_09.png"
+        },
+        {
+          "type": "bitmap",
+          "name": "MOON_SP_0",
+          "file": "icons/moon_sp_00.png"
+        },
+        {
+          "type": "bitmap",
+          "name": "MOON_SP_1",
+          "file": "icons/moon_sp_01.png"
+        },
+        {
+          "type": "bitmap",
+          "name": "MOON_SP_2",
+          "file": "icons/moon_sp_02.png"
+        },
+        {
+          "type": "bitmap",
+          "name": "MOON_SP_3",
+          "file": "icons/moon_sp_03.png"
+        },
+        {
+          "type": "bitmap",
+          "name": "MOON_SP_4",
+          "file": "icons/moon_sp_04.png"
+        },
+        {
+          "type": "bitmap",
+          "name": "MOON_SP_5",
+          "file": "icons/moon_sp_05.png"
+        },
+        {
+          "type": "bitmap",
+          "name": "MOON_SP_6",
+          "file": "icons/moon_sp_06.png"
+        },
+        {
+          "type": "bitmap",
+          "name": "MOON_SP_7",
+          "file": "icons/moon_sp_07.png"
+        },
+        {
+          "type": "bitmap",
+          "name": "MOON_SP_8",
+          "file": "icons/moon_sp_08.png"
+        },
+        {
+          "type": "bitmap",
+          "name": "MOON_SP_9",
+          "file": "icons/moon_sp_09.png"
+        },
+        {
+          "type": "bitmap",
+          "name": "MOON_CTR_0",
+          "file": "icons/moon_ctr_00.png"
+        },
+        {
+          "type": "bitmap",
+          "name": "MOON_CTR_1",
+          "file": "icons/moon_ctr_01.png"
+        },
+        {
+          "type": "bitmap",
+          "name": "MOON_CTR_2",
+          "file": "icons/moon_ctr_02.png"
+        },
+        {
+          "type": "bitmap",
+          "name": "MOON_CTR_3",
+          "file": "icons/moon_ctr_03.png"
+        },
+        {
+          "type": "bitmap",
+          "name": "MOON_CTR_4",
+          "file": "icons/moon_ctr_04.png"
+        },
+        {
+          "type": "bitmap",
+          "name": "MOON_CTR_5",
+          "file": "icons/moon_ctr_05.png"
+        },
+        {
+          "type": "bitmap",
+          "name": "MOON_CTR_6",
+          "file": "icons/moon_ctr_06.png"
+        },
+        {
+          "type": "bitmap",
+          "name": "MOON_CTR_7",
+          "file": "icons/moon_ctr_07.png"
+        },
+        {
+          "type": "bitmap",
+          "name": "MOON_CTR_8",
+          "file": "icons/moon_ctr_08.png"
+        },
+        {
+          "type": "bitmap",
+          "name": "MOON_CTR_9",
+          "file": "icons/moon_ctr_09.png"
+        },
+        {
+          "type": "bitmap",
+          "name": "OV_PARTLY_RING",
+          "file": "icons/ov_partly_ring.png"
+        },
+        {
+          "type": "bitmap",
+          "name": "OV_OVERCAST_RING",
+          "file": "icons/ov_overcast_ring.png"
+        },
+        {
+          "type": "bitmap",
+          "name": "OV_RAIN_RING",
+          "file": "icons/ov_rain_ring.png"
+        },
+        {
+          "type": "bitmap",
+          "name": "OV_SNOW_RING",
+          "file": "icons/ov_snow_ring.png"
+        },
+        {
+          "type": "bitmap",
+          "name": "OV_STORM_RING",
+          "file": "icons/ov_storm_ring.png"
+        },
+        {
+          "type": "bitmap",
+          "name": "OV_PARTLY_CTR",
+          "file": "icons/ov_partly_ctr.png"
+        },
+        {
+          "type": "bitmap",
+          "name": "OV_OVERCAST_CTR",
+          "file": "icons/ov_overcast_ctr.png"
+        },
+        {
+          "type": "bitmap",
+          "name": "OV_RAIN_CTR",
+          "file": "icons/ov_rain_ctr.png"
+        },
+        {
+          "type": "bitmap",
+          "name": "OV_SNOW_CTR",
+          "file": "icons/ov_snow_ctr.png"
+        },
+        {
+          "type": "bitmap",
+          "name": "OV_STORM_CTR",
+          "file": "icons/ov_storm_ctr.png"
+        },
+        {
+          "type": "bitmap",
+          "name": "OV_PARTLY_XL",
+          "file": "icons/ov_partly_xl.png"
+        },
+        {
+          "type": "bitmap",
+          "name": "OV_OVERCAST_XL",
+          "file": "icons/ov_overcast_xl.png"
+        },
+        {
+          "type": "bitmap",
+          "name": "OV_RAIN_XL",
+          "file": "icons/ov_rain_xl.png"
+        },
+        {
+          "type": "bitmap",
+          "name": "OV_SNOW_XL",
+          "file": "icons/ov_snow_xl.png"
+        },
+        {
+          "type": "bitmap",
+          "name": "OV_STORM_XL",
+          "file": "icons/ov_storm_xl.png"
+        }
+      ]
+    }
+  }
+}
