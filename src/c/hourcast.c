@@ -503,12 +503,13 @@ static int tide_fill_pct(int v) {
 static void draw_tide_cell(GContext *ctx, GPoint c, int S, int pct) {
   int x0 = c.x - S / 2, x1 = c.x + S / 2;
   int top = c.y - S / 2, bottom = c.y + S / 2;
-  int amp = (S * 7) / 100; if (amp < 1) amp = 1;
+  int amp = S / 5; if (amp < 2) amp = 2;  // ~20% of cell — visible wave
   int mean = bottom - (pct * S) / 100;   // mean water-surface y
   graphics_context_set_stroke_color(ctx, GColorBlueMoon);
   graphics_context_set_stroke_width(ctx, 1);
+  int width = x1 - x0; if (width < 1) width = 1;
   for (int x = x0; x <= x1; x++) {
-    int32_t ang = (int32_t)(x - x0) * TRIG_MAX_ANGLE * 12 / (10 * (S ? S : 1));  // ~1.2 cycles
+    int32_t ang = (int32_t)(x - x0) * TRIG_MAX_ANGLE / width;  // exactly 1 cycle
     int surf = mean - (amp * sin_lookup(ang)) / TRIG_MAX_RATIO;
     if (surf < top) surf = top;            // squared off at the top corners
     if (surf < bottom) graphics_draw_line(ctx, GPoint(x, surf), GPoint(x, bottom));
