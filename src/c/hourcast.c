@@ -499,28 +499,53 @@ static int tide_fill_pct(int v) {
   return 100;
 }
 
-// A blue tank centered at c: wavy top, rocky border, sub-surface shadow wave.
-// phase offsets the wave start so adjacent cells look different.
+// Quarter-circle corner cutoffs for radius 4.
+// Index [d-1] where d = distance from corner center (1..4).
+// eff_bottom = bottom - CORNER_CUT[d-1].  Derived: bottom - 4 + floor(sqrt(16-d^2))
+static const int8_t CORNER_CUT[4] = {1, 1, 2, 4};
+#define CORNER_R 4
+
+// Rocky harbor wall texture: mostly DarkGray with sparse LightGray highlights
+// and Black crevices, using a position hash so it's stable and non-repeating.
+static GColor rock_color(int x, int y) {
+  int h = ((x * 7) ^ (y * 13)) & 0xF;   // 0..15
+  if (h == 0)  return GColorLightGray;   //  6% highlight
+  if (h >= 13) return GColorBlack;       // 19% crevice
+  return GColorDarkGray;                 // 75% stone face
+}
+
+// A blue tank centered at c: rounded bottom corners, wavy top,
+// rocky harbor border, sub-surface shadow wave.
 static void draw_tide_cell(GContext *ctx, GPoint c, int S, int pct, int32_t phase) {
   int x0 = c.x - S / 2, x1 = c.x + S / 2;
   int top = c.y - S / 2, bottom = c.y + S / 2;
   int amp = S / 8; if (amp < 2) amp = 2;
   int mean = bottom - (pct * S) / 100;
   int width = x1 - x0; if (width < 1) width = 1;
-  int sub = amp + 3;   // px below surface for the shadow wave
+  int sub = amp + 3;
 
   graphics_context_set_stroke_width(ctx, 1);
 
-  // 1. Blue water fill: wave surface down to bottom
+  // 1. Blue water fill with rounded bottom corners
   graphics_context_set_stroke_color(ctx, GColorBlueMoon);
   for (int x = x0; x <= x1; x++) {
+    // Rounded corner: raise the effective bottom near left/right edges
+    int eff_bottom = bottom;
+    int dl = x - x0, dr = x1 - x;
+    if (dl < CORNER_R) {
+      int d = CORNER_R - dl;
+      eff_bottom = bottom - CORNER_CUT[d - 1];
+    } else if (dr < CORNER_R) {
+      int d = CORNER_R - dr;
+      eff_bottom = bottom - CORNER_CUT[d - 1];
+    }
     int32_t ang = (int32_t)(x - x0) * TRIG_MAX_ANGLE / width + phase;
     int surf = mean - (amp * sin_lookup(ang)) / TRIG_MAX_RATIO;
-    if (surf < top) surf = top;
-    if (surf < bottom) graphics_draw_line(ctx, GPoint(x, surf), GPoint(x, bottom));
+    if (surf < top)        surf = top;
+    if (surf < eff_bottom) graphics_draw_line(ctx, GPoint(x, surf), GPoint(x, eff_bottom));
   }
 
-  // 2. Sub-surface shadow wave (black), traces the same curve shifted down
+  // 2. Sub-surface shadow wave (black), same curve shifted down
   graphics_context_set_stroke_color(ctx, GColorBlack);
   for (int x = x0; x <= x1; x++) {
     int32_t ang = (int32_t)(x - x0) * TRIG_MAX_ANGLE / width + phase;
@@ -529,22 +554,17 @@ static void draw_tide_cell(GContext *ctx, GPoint c, int S, int pct, int32_t phas
     if (sy > top && sy < bottom) graphics_draw_pixel(ctx, GPoint(x, sy));
   }
 
-  // 3. Rocky border: left, right, bottom walls
-  // Base in dark gray, then light gray highlights every 4px for stone texture
-  graphics_context_set_stroke_color(ctx, GColorDarkGray);
-  for (int y = top; y <= bottom; y++) {
+  // 3. Rocky border: side walls (straight segment only), then bottom
+  // Side walls stop CORNER_R px above the bottom to expose the rounded corners
+  for (int y = top; y <= bottom - CORNER_R; y++) {
+    graphics_context_set_stroke_color(ctx, rock_color(x0 - 1, y));
     graphics_draw_pixel(ctx, GPoint(x0 - 1, y));
+    graphics_context_set_stroke_color(ctx, rock_color(x1 + 1, y));
     graphics_draw_pixel(ctx, GPoint(x1 + 1, y));
   }
-  for (int x = x0 - 1; x <= x1 + 1; x++) {
-    graphics_draw_pixel(ctx, GPoint(x, bottom + 1));
-  }
-  graphics_context_set_stroke_color(ctx, GColorLightGray);
-  for (int y = top; y <= bottom; y += 4) {
-    graphics_draw_pixel(ctx, GPoint(x0 - 1, y));
-    if (y + 2 <= bottom) graphics_draw_pixel(ctx, GPoint(x1 + 1, y + 2));
-  }
-  for (int x = x0; x <= x1 + 1; x += 4) {
+  // Bottom wall spans only the straight segment between the corner arcs
+  for (int x = x0 + CORNER_R; x <= x1 - CORNER_R; x++) {
+    graphics_context_set_stroke_color(ctx, rock_color(x, bottom + 1));
     graphics_draw_pixel(ctx, GPoint(x, bottom + 1));
   }
 }
