@@ -159,10 +159,11 @@ static void blit_icon(GContext *ctx, GPoint c, GBitmap *bmp) {
   graphics_draw_bitmap_in_rect(ctx, bmp, dst);
 }
 
-// Behind a precip cloud the celestial is clipped at the cloud's bottom (the
-// precip cloud bottom is anchored at 80% of the icon in generate_overlays.py),
-// so it fills behind the whole cloud with no gap and nothing shows below it.
-#define CROWN_FRAC_PCT 80
+// Behind a precip cloud the celestial is clipped just below the cloud's top
+// (~40% of the icon): the crown shows above the cloud, the clip edge hides
+// behind it (no gap), and the sun's lower side/bottom rays -- which would
+// otherwise poke out past the narrower cloud edges -- are cut off.
+#define CROWN_FRAC_PCT 40
 
 static void blit_icon_crown(GContext *ctx, GPoint c, GBitmap *bmp) {
   if (!bmp) return;
