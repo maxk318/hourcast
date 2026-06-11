@@ -28,9 +28,9 @@ function loadLocationConfig() {
 // Classification cutoffs — defaults match the settings page defaults. All are
 // user-editable; loadThresholds() pulls any saved values from clay-settings.
 var THRESHOLDS = {
-  pop1: 10, pop2: 25, pop3: 40, pop4: 55,   // POP %: lower bound for 1/2/3/4 marks
+  pop1: 10, pop2: 20, pop3: 40, pop4: 60,   // POP %: lower bound for 1/2/3/4 marks
   overcast: 90, clear: 15,                   // cloud cover %: >=overcast full, <clear clear
-  stormCape: 2000                            // >= this CAPE (J/kg) precip renders as storm
+  stormCape: 1500                            // >= this CAPE (J/kg) precip renders as storm
 };
 
 function loadThresholds() {
@@ -38,12 +38,12 @@ function loadThresholds() {
     var s = JSON.parse(localStorage.getItem('clay-settings')) || {};
     function num(k, d) { var v = parseFloat(s[k]); return isNaN(v) ? d : v; }
     THRESHOLDS.pop1 = num('POP1', 10);
-    THRESHOLDS.pop2 = num('POP2', 25);
+    THRESHOLDS.pop2 = num('POP2', 20);
     THRESHOLDS.pop3 = num('POP3', 40);
-    THRESHOLDS.pop4 = num('POP4', 55);
+    THRESHOLDS.pop4 = num('POP4', 60);
     THRESHOLDS.overcast = num('CLOUD_OVERCAST', 90);
     THRESHOLDS.clear = num('CLOUD_CLEAR', 15);
-    THRESHOLDS.stormCape = num('STORM_CAPE', 2000);
+    THRESHOLDS.stormCape = num('STORM_CAPE', 1500);
   } catch (e) { /* keep defaults */ }
 }
 
@@ -193,6 +193,78 @@ function packIcon(isDay, cell) {
   return (isDay ? 0 : 100) + cell.state * 10 + cell.count;
 }
 
+function sendTide(lat, lon) {
+  // Fetch tide data from tide-api.com and send to watch (async, may arrive after weather)
+  var url = 'https://api.tide-forecast.com/sites?lat=' + lat + '&lon=' + lon + '&type=current';
+  var xhr = new XMLHttpRequest();
+  xhr.onload = function () {
+    try {
+      var j = JSON.parse(this.responseText);
+      if (j && j.length > 0) {
+        var site = j[0];
+        var tideUrl = 'https://api.tide-forecast.com/v1/tide_station?id=' + site.id + '&num_tides=50';
+        var tideXhr = new XMLHttpRequest();
+        tideXhr.onload = function () {
+          try {
+            var tides = JSON.parse(this.responseText);
+            if (tides && tides.tides) {
+              var now = new Date();
+              var hour0 = new Date(now);
+              hour0.setMinutes(0);
+              hour0.setSeconds(0);
+              hour0.setMilliseconds(0);
+
+              var tideDict = {};
+              var minLevel = Infinity, maxLevel = -Infinity;
+              var hasData = false;
+
+              for (var h = 0; h < 12; h++) {
+                var hourTime = new Date(hour0.getTime() + h * 3600000);
+                var levels = [];
+
+                for (var t = 0; t < tides.tides.length; t++) {
+                  var tideTime = new Date(tides.tides[t].datetime);
+                  if (tideTime.getHours() === hourTime.getHours()) {
+                    levels.push(tides.tides[t].level);
+                  }
+                }
+
+                if (levels.length > 0) {
+                  var avg = levels.reduce(function(a, b) { return a + b; }) / levels.length;
+                  minLevel = Math.min(minLevel, avg);
+                  maxLevel = Math.max(maxLevel, avg);
+                  tideDict['TIDE_' + h] = Math.round(avg * 100);
+                  hasData = true;
+                }
+              }
+
+              // Normalize levels to 0-100 range
+              if (hasData && maxLevel > minLevel) {
+                for (var h = 0; h < 12; h++) {
+                  if (tideDict.hasOwnProperty('TIDE_' + h)) {
+                    var norm = Math.round((tideDict['TIDE_' + h] - minLevel) / (maxLevel - minLevel) * 100);
+                    tideDict['TIDE_' + h] = norm;
+                  }
+                }
+                tideDict['TIDE_VALID'] = 1;
+                Pebble.sendAppMessage(tideDict,
+                  function () { console.log('HourCast: tide sent'); },
+                  function (e) { console.log('HourCast: tide send failed ' + JSON.stringify(e)); });
+              }
+            }
+          } catch (e) { console.log('HourCast: tide parse error ' + e); }
+        };
+        tideXhr.onerror = function () { console.log('HourCast: tide fetch error'); };
+        tideXhr.open('GET', tideUrl);
+        tideXhr.send();
+      }
+    } catch (e) { console.log('HourCast: tide site error ' + e); }
+  };
+  xhr.onerror = function () { console.log('HourCast: tide site fetch error'); };
+  xhr.open('GET', url);
+  xhr.send();
+}
+
 function sendWeather(lat, lon) {
   var url = 'https://api.open-meteo.com/v1/forecast' +
     '?latitude=' + lat + '&longitude=' + lon +
@@ -260,6 +332,9 @@ function sendWeather(lat, lon) {
     Pebble.sendAppMessage(dict,
       function () { console.log('HourCast: weather sent'); },
       function (e) { console.log('HourCast: send failed ' + JSON.stringify(e)); });
+
+    // Fetch tide data asynchronously (will send in a follow-up message if available)
+    sendTide(lat, lon);
   };
   xhr.onerror = function () { console.log('HourCast: xhr error'); };
   xhr.open('GET', url);

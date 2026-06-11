@@ -69,7 +69,21 @@
       "POP4",
       "CLOUD_OVERCAST",
       "CLOUD_CLEAR",
-      "STORM_CAPE"
+      "STORM_CAPE",
+      "SHOW_TIDE",
+      "TIDE_0",
+      "TIDE_1",
+      "TIDE_2",
+      "TIDE_3",
+      "TIDE_4",
+      "TIDE_5",
+      "TIDE_6",
+      "TIDE_7",
+      "TIDE_8",
+      "TIDE_9",
+      "TIDE_10",
+      "TIDE_11",
+      "TIDE_VALID"
     ],
     "resources": {
       "media": [

@@ -41,6 +41,13 @@ static char   s_sunrise_str[8] = "", s_sunset_str[8] = "";
 enum { MODE_NUMERALS = 0, MODE_HASH = 1, MODE_TEMPS = 2 };
 static int    s_display_mode = MODE_NUMERALS;      // setting: default inner-ring style
 
+// Tide: a blue "tank" drawn behind each inner-ring slot, filled to that hour's
+// tide level. s_tide[k] is 0..100 per clock slot; shown only when the user
+// enables it and the phone found a nearby tide station.
+static uint8_t s_tide[12];
+static bool    s_tide_valid = false;   // phone has tide data (nearby station)
+static bool    s_show_tide = false;    // setting: draw the tide tanks
+
 // ---- helpers ----
 static GPoint point_on_circle(GPoint center, int radius, int32_t angle) {
   return GPoint(
@@ -482,6 +489,46 @@ static void draw_battery_badge(GContext *ctx, GPoint center) {
   draw_disc_badge(ctx, center, 7, buf);   // 7 o'clock
 }
 
+// ---- tide tanks (very back layer) ----
+// tide 0..100 -> fill % of the tank, in the agreed increments.
+static int tide_fill_pct(int v) {
+  if (v <= 15) return 15;
+  if (v <= 35) return 35;
+  if (v <= 65) return 65;
+  if (v <= 85) return 85;
+  return 100;
+}
+
+// A blue tank centered at c: straight sides/bottom, wavy top, filled to pct.
+static void draw_tide_cell(GContext *ctx, GPoint c, int S, int pct) {
+  int x0 = c.x - S / 2, x1 = c.x + S / 2;
+  int top = c.y - S / 2, bottom = c.y + S / 2;
+  int amp = (S * 7) / 100; if (amp < 1) amp = 1;
+  int mean = bottom - (pct * S) / 100;   // mean water-surface y
+  graphics_context_set_stroke_color(ctx, GColorBlueMoon);
+  graphics_context_set_stroke_width(ctx, 1);
+  for (int x = x0; x <= x1; x++) {
+    int32_t ang = (int32_t)(x - x0) * TRIG_MAX_ANGLE * 12 / (10 * (S ? S : 1));  // ~1.2 cycles
+    int surf = mean - (amp * sin_lookup(ang)) / TRIG_MAX_RATIO;
+    if (surf < top) surf = top;            // squared off at the top corners
+    if (surf < bottom) graphics_draw_line(ctx, GPoint(x, surf), GPoint(x, bottom));
+  }
+}
+
+#define TIDE_RING_PCT 50   // inner radius for the tanks (tune on emulator)
+#define TIDE_CELL     26   // tank size (px)
+static void draw_tide(GContext *ctx, GPoint center, int hw, int hh) {
+  if (!s_show_tide || !s_tide_valid) return;
+  for (int k = 0; k < 12; k++) {
+    if (!s_wx_valid[k]) continue;          // only where there is a forecast hour
+    int32_t angle = k * TRIG_MAX_ANGLE / 12;
+    GPoint edge = point_on_rect(center, hw, hh, angle);
+    GPoint p = GPoint(center.x + (edge.x - center.x) * TIDE_RING_PCT / 100,
+                      center.y + (edge.y - center.y) * TIDE_RING_PCT / 100);
+    draw_tide_cell(ctx, p, TIDE_CELL, tide_fill_pct(s_tide[k]));
+  }
+}
+
 static void face_update_proc(Layer *layer, GContext *ctx) {
   GRect bounds = layer_get_bounds(layer);
   graphics_context_set_antialiased(ctx, true);  // smooth curves/lines (avoids the blocky look)
@@ -493,7 +540,8 @@ static void face_update_proc(Layer *layer, GContext *ctx) {
   int hh = bounds.size.h / 2;
   int half = (hw < hh ? hw : hh);
 
-  draw_hands(ctx, center, half, hw, hh);   // very back: everything else draws on top
+  draw_tide(ctx, center, hw, hh);          // very back: behind even the hands
+  draw_hands(ctx, center, half, hw, hh);   // everything else draws on top
   draw_icon_ring(ctx, center, hw, hh);     // outer ring: weather icons (temp on top in modes 0/1)
   if (s_display_mode == MODE_NUMERALS)
     draw_hour_numerals(ctx, center, hw, hh); // inner ring: hour numerals
@@ -566,7 +614,7 @@ static uint8_t cell_to_code(WxCell w) {
 
 // Persist the last weather so a relaunch shows it instantly (no placeholder flash).
 #define PERSIST_WX  1
-#define PERSIST_VER 3   // bumped: icon encoding now night*100 + state*10 + count
+#define PERSIST_VER 4   // bumped: added per-slot tide data
 typedef struct __attribute__((__packed__)) {
   uint8_t  ver;
   uint8_t  icon[12];
@@ -581,6 +629,8 @@ typedef struct __attribute__((__packed__)) {
   int8_t   sunset_k;
   char     sunrise[8];
   char     sunset[8];
+  uint8_t  tide[12];
+  uint8_t  tide_valid;
 } WxPersist;
 
 static void save_weather(void) {
@@ -601,6 +651,8 @@ static void save_weather(void) {
   p.sunset_k = (int8_t)s_sunset_k;
   strncpy(p.sunrise, s_sunrise_str, sizeof(p.sunrise) - 1);
   strncpy(p.sunset, s_sunset_str, sizeof(p.sunset) - 1);
+  for (int k = 0; k < 12; k++) p.tide[k] = s_tide[k];
+  p.tide_valid = s_tide_valid ? 1 : 0;
   persist_write_data(PERSIST_WX, &p, sizeof(p));
 }
 
@@ -609,6 +661,7 @@ static void load_weather(void) {
     s_display_mode = persist_read_int(2);
     if (s_display_mode < MODE_NUMERALS || s_display_mode > MODE_TEMPS) s_display_mode = MODE_NUMERALS;
   }
+  if (persist_exists(3)) s_show_tide = persist_read_bool(3);   // setting: show tide
   if (!persist_exists(PERSIST_WX)) return;       // first launch: blank until JS sends
   WxPersist p;
   if (persist_read_data(PERSIST_WX, &p, sizeof(p)) < (int)sizeof(p)) return;
@@ -627,6 +680,8 @@ static void load_weather(void) {
   s_sunset_k = p.sunset_k;
   strncpy(s_sunrise_str, p.sunrise, sizeof(s_sunrise_str) - 1);
   strncpy(s_sunset_str, p.sunset, sizeof(s_sunset_str) - 1);
+  for (int k = 0; k < 12; k++) s_tide[k] = p.tide[k];
+  s_tide_valid = p.tide_valid ? 1 : 0;
 }
 
 static void inbox_received(DictionaryIterator *iter, void *context) {
@@ -680,6 +735,21 @@ static void inbox_received(DictionaryIterator *iter, void *context) {
       load_weather_icons();
     }
   }
+
+  Tuple *st = dict_find(iter, MESSAGE_KEY_SHOW_TIDE);
+  if (st) s_show_tide = st->value->uint32 ? true : false;
+
+  const uint32_t TIDE_KEYS[12] = {
+    MESSAGE_KEY_TIDE_0, MESSAGE_KEY_TIDE_1, MESSAGE_KEY_TIDE_2,  MESSAGE_KEY_TIDE_3,
+    MESSAGE_KEY_TIDE_4, MESSAGE_KEY_TIDE_5, MESSAGE_KEY_TIDE_6,  MESSAGE_KEY_TIDE_7,
+    MESSAGE_KEY_TIDE_8, MESSAGE_KEY_TIDE_9, MESSAGE_KEY_TIDE_10, MESSAGE_KEY_TIDE_11,
+  };
+  for (int k = 0; k < 12; k++) {
+    Tuple *tt = dict_find(iter, TIDE_KEYS[k]);
+    if (tt) s_tide[k] = tt->value->uint32;
+  }
+  Tuple *tv = dict_find(iter, MESSAGE_KEY_TIDE_VALID);
+  if (tv) s_tide_valid = tv->value->uint32 ? true : false;
 
   save_weather();   // remember for next launch
   if (s_face_layer) layer_mark_dirty(s_face_layer);
