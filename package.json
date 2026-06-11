@@ -69,7 +69,6 @@
       "POP4",
       "CLOUD_OVERCAST",
       "CLOUD_CLEAR",
-      "SNOW_TEMP_F",
       "STORM_CAPE"
     ],
     "resources": {

@@ -6,12 +6,13 @@ Probability-driven precipitation.
 
 **New / Changed**
 - Precipitation chance now drives the icon: each precip hour shows 1–4 marks — rays (rain), snowflakes (snow), or lightning bolts (storm) — scaled to the chance of precipitation, instead of a single categorical icon.
-- Weather now factors in precipitation probability, cloud cover, temperature, and CAPE (instability) — so likely rain/storms show up that the old code-only classification missed.
+- Weather now factors in precipitation probability, cloud cover, and CAPE (instability) — so likely rain/storms show up that the old code-only classification missed. Rain vs. snow comes straight from the forecast (snowfall / snow conditions); a high-CAPE precip hour reads as a storm.
 - All marks are drawn on-watch with a black outline (like the hands); snowflakes are branched, not bare asterisks.
-- New "Weather sensitivity" settings section: every cutoff is editable — the 1/2/3/4-mark probability thresholds, overcast/clear cloud-cover %, the snow temperature, and the storm CAPE level — with a legend explaining what the marks mean.
+- New "Weather sensitivity" settings section: the 1/2/3/4-mark probability thresholds, the overcast/clear cloud-cover %, and the storm CAPE level are all editable, with a legend explaining what the marks mean.
+- The inner ring now defaults to Clock Numbers and stays in sync with the settings page.
 
 **Improved**
-- Overcast clouds are white; rain/snow/storm use a darker storm cloud with the sun or moon clipped to a crown peeking over the top.
+- Overcast clouds are white; rain/snow/storm use a darker storm cloud, sized so the top of the sun or moon (its phase) peeks over it.
 
 ## 2.2.0
 

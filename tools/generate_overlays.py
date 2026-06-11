@@ -73,7 +73,9 @@ dark_cl  = to_gray(plain, 0.43)   # precip cloud: dark, because rain/snow clouds
 
 # "Puff only" = the cloud glyph with its little bottom lobe cropped off, so when
 # we stack two of these for a precip cloud there's no small puff dangling below.
-PUFF_FRAC = 0.66
+# A flatter crop keeps the cloud short so it can sit lower and reveal the top of
+# the sun/moon while still leaving room for the marks below.
+PUFF_FRAC = 0.56
 _puff = dark_cl.crop((0, 0, dark_cl.width, int(dark_cl.height * PUFF_FRAC)))
 _bb = _puff.getbbox()
 puff_src = _puff.crop(_bb) if _bb else _puff
@@ -148,12 +150,13 @@ def precip_cloud_mass(S):
     h = int(w * puff_src.height / puff_src.width)   # preserve puff aspect ratio
     cl = puff_src.resize((w, h), Image.LANCZOS)
     x = (S - w) // 2
-    top_y = int(S * 0.14)                # pair shifted down a bit; crown peeks above
-    shift = int(S * 0.16)                # lower puff shifted down from the upper
-    canvas.alpha_composite(cl, (x, top_y))           # upper puff
-    canvas.alpha_composite(cl, (x, top_y + shift))   # lower puff, in front
-    cloud_bottom = top_y + shift + h
-    return canvas, cloud_bottom
+    bottom = int(S * 0.80)               # anchor the cloud bottom (matches the C mark band)
+    shift = int(S * 0.10)                # lower puff shifted down from the upper
+    lower_y = bottom - h
+    upper_y = lower_y - shift
+    canvas.alpha_composite(cl, (x, upper_y))   # upper puff
+    canvas.alpha_composite(cl, (x, lower_y))   # lower puff, in front
+    return canvas, bottom
 
 def flake_sprite(diam):
     # One branched-tip snowflake (white, dark outline) on a transparent square,

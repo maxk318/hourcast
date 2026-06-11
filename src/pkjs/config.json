@@ -61,15 +61,14 @@
       { "type": "input", "messageKey": "POP2", "label": "2 marks at this % or higher", "defaultValue": "25", "attributes": { "type": "number", "min": "0", "max": "100", "step": "1" } },
       { "type": "input", "messageKey": "POP3", "label": "3 marks at this % or higher", "defaultValue": "40", "attributes": { "type": "number", "min": "0", "max": "100", "step": "1" } },
       { "type": "input", "messageKey": "POP4", "label": "4 marks at this % or higher", "defaultValue": "55", "attributes": { "type": "number", "min": "0", "max": "100", "step": "1" } },
-      { "type": "text", "defaultValue": "Below the 1-mark value no precipitation is drawn (clouds only). Lower these to be more conservative (rain shows sooner)." },
+      { "type": "text", "defaultValue": "Below the 1-mark value no precipitation is drawn (clouds only). Lower these to be more conservative (precipitation shows sooner)." },
       { "type": "heading", "defaultValue": "Cloud cover (%)" },
       { "type": "input", "messageKey": "CLOUD_OVERCAST", "label": "Overcast at this % or higher", "defaultValue": "90", "attributes": { "type": "number", "min": "0", "max": "100", "step": "1" } },
       { "type": "input", "messageKey": "CLOUD_CLEAR", "label": "Clear below this %", "defaultValue": "15", "attributes": { "type": "number", "min": "0", "max": "100", "step": "1" } },
-      { "type": "text", "defaultValue": "Between these two values shows as partly cloudy." },
+      { "type": "text", "defaultValue": "These apply only when no precipitation is shown; between the two values is partly cloudy." },
       { "type": "heading", "defaultValue": "Precip type" },
-      { "type": "input", "messageKey": "SNOW_TEMP_F", "label": "Snow at this temp (F) or below", "defaultValue": "34", "attributes": { "type": "number", "step": "1" } },
-      { "type": "input", "messageKey": "STORM_CAPE", "label": "Storm at CAPE (J/kg) or higher", "defaultValue": "1500", "attributes": { "type": "number", "min": "0", "step": "50" } },
-      { "type": "text", "defaultValue": "A precip hour shows as a storm when thunderstorms are forecast or CAPE is high; otherwise snow when cold or snowing; otherwise rain." }
+      { "type": "input", "messageKey": "STORM_CAPE", "label": "Storm at CAPE (J/kg) or higher", "defaultValue": "2000", "attributes": { "type": "number", "min": "0", "step": "50" } },
+      { "type": "text", "defaultValue": "A precip hour shows as snow when the forecast shows snow; otherwise a storm when thunderstorms are forecast or CAPE is high; otherwise rain. Snow/rain type comes straight from the forecast." }
     ]
   },
   { "type": "submit", "defaultValue": "Save" }

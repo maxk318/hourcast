@@ -30,8 +30,7 @@ function loadLocationConfig() {
 var THRESHOLDS = {
   pop1: 10, pop2: 25, pop3: 40, pop4: 55,   // POP %: lower bound for 1/2/3/4 marks
   overcast: 90, clear: 15,                   // cloud cover %: >=overcast full, <clear clear
-  snowTemp: 34,                              // <= this (°F) precip renders as snow
-  stormCape: 1500                            // >= this CAPE (J/kg) precip renders as storm
+  stormCape: 2000                            // >= this CAPE (J/kg) precip renders as storm
 };
 
 function loadThresholds() {
@@ -44,8 +43,7 @@ function loadThresholds() {
     THRESHOLDS.pop4 = num('POP4', 55);
     THRESHOLDS.overcast = num('CLOUD_OVERCAST', 90);
     THRESHOLDS.clear = num('CLOUD_CLEAR', 15);
-    THRESHOLDS.snowTemp = num('SNOW_TEMP_F', 34);
-    THRESHOLDS.stormCape = num('STORM_CAPE', 1500);
+    THRESHOLDS.stormCape = num('STORM_CAPE', 2000);
   } catch (e) { /* keep defaults */ }
 }
 
@@ -172,9 +170,9 @@ function num0(v) { return (typeof v === 'number' && !isNaN(v)) ? v : 0; }
 //   count  = number of marks (0..4) from precipitation probability buckets
 //   state  = 0 clear / 1 partly / 2 overcast (when count 0), else
 //            3 rain / 4 snow / 5 storm (the precip type carrying the marks)
-// POP sets HOW MANY marks; temp/CAPE/code decide WHICH kind (Open-Meteo gives
-// only one generic precip probability, not separate snow/storm odds).
-function classify(code, pop, cloud, tempF, cape, snow) {
+// POP sets HOW MANY marks; CAPE/code decide WHICH kind. Snow vs rain comes
+// straight from the forecast (snowfall / snow weather code), not a temp guess.
+function classify(code, pop, cloud, cape, snow) {
   var T = THRESHOLDS;
   pop = num0(pop); cloud = num0(cloud); cape = num0(cape); snow = num0(snow);
   var count = pop >= T.pop4 ? 4 : pop >= T.pop3 ? 3 : pop >= T.pop2 ? 2 : pop >= T.pop1 ? 1 : 0;
@@ -184,9 +182,9 @@ function classify(code, pop, cloud, tempF, cape, snow) {
   }
   var snowCode = (code >= 71 && code <= 77) || code === 85 || code === 86;
   var state;
-  if (tempF <= T.snowTemp || snow > 0 || snowCode) state = 4;         // snow (wins over storm)
-  else if (code >= 95 || cape >= T.stormCape) state = 5;             // storm
-  else state = 3;                                                     // rain
+  if (snow > 0 || snowCode) state = 4;                  // snow (wins over storm)
+  else if (code >= 95 || cape >= T.stormCape) state = 5; // storm
+  else state = 3;                                        // rain
   return { state: state, count: count };
 }
 
@@ -240,7 +238,7 @@ function sendWeather(lat, lon) {
       prevDay = isDay;
       var H = j.hourly;
       var cell = classify(H.weather_code[idx], H.precipitation_probability[idx],
-                          H.cloud_cover[idx], H.temperature_2m[idx], H.cape[idx], H.snowfall[idx]);
+                          H.cloud_cover[idx], H.cape[idx], H.snowfall[idx]);
       dict['ICON_' + k] = packIcon(isDay, cell);
       dict['TEMP_' + k] = Math.round(j.hourly.temperature_2m[idx]);
     }
@@ -254,8 +252,8 @@ function sendWeather(lat, lon) {
     // hour's hourly values, with the live current temp/weather_code/day flag.
     var curIdx = (i0 > 0) ? i0 - 1 : 0;
     var curCell = classify(j.current.weather_code, j.hourly.precipitation_probability[curIdx],
-                           j.hourly.cloud_cover[curIdx], j.current.temperature_2m,
-                           j.hourly.cape[curIdx], j.hourly.snowfall[curIdx]);
+                           j.hourly.cloud_cover[curIdx], j.hourly.cape[curIdx],
+                           j.hourly.snowfall[curIdx]);
     dict['CUR_ICON'] = packIcon(j.current.is_day, curCell);
     dict['CUR_TEMP'] = Math.round(j.current.temperature_2m);
 
