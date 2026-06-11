@@ -73,9 +73,10 @@ dark_cl  = to_gray(plain, 0.43)   # precip cloud: dark, because rain/snow clouds
 
 # "Puff only" = the cloud glyph with its little bottom lobe cropped off, so when
 # we stack two of these for a precip cloud there's no small puff dangling below.
-# A flatter crop keeps the cloud short so it can sit lower and reveal the top of
-# the sun/moon while still leaving room for the marks below.
-PUFF_FRAC = 0.56
+# (The precip cloud is made short by squashing this vertically in
+# precip_cloud_mass -- NOT by cropping it flatter, which would box off the
+# rounded, textured bottom.)
+PUFF_FRAC = 0.66
 _puff = dark_cl.crop((0, 0, dark_cl.width, int(dark_cl.height * PUFF_FRAC)))
 _bb = _puff.getbbox()
 puff_src = _puff.crop(_bb) if _bb else _puff
@@ -147,7 +148,10 @@ def precip_cloud_mass(S):
     # full storm cloud (no small puff on top, no tiny lobe underneath).
     canvas = Image.new("RGBA", (S, S), (0, 0, 0, 0))
     w = int(S * 0.92)
-    h = int(w * puff_src.height / puff_src.width)   # preserve puff aspect ratio
+    h = int(S * 0.47)                    # SQUASHED height (vs proportional ~0.61S):
+                                         # keeps the full rounded, textured cloud shape
+                                         # but short, so it sits low and the sun/moon
+                                         # top (its phase) peeks above it.
     cl = puff_src.resize((w, h), Image.LANCZOS)
     x = (S - w) // 2
     bottom = int(S * 0.80)               # anchor the cloud bottom (matches the C mark band)
