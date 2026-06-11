@@ -56,7 +56,8 @@ function syncSettingsToWatch() {
   var s = {};
   try { s = JSON.parse(localStorage.getItem('clay-settings')) || {}; } catch (e) { /* */ }
   var mode = s.hasOwnProperty('DISPLAY_MODE') ? (parseInt(s.DISPLAY_MODE, 10) || 0) : 0;
-  Pebble.sendAppMessage({ 'DISPLAY_MODE': mode },
+  var showTide = s.hasOwnProperty('SHOW_TIDE') ? (!!s.SHOW_TIDE) : false;
+  Pebble.sendAppMessage({ 'DISPLAY_MODE': mode, 'SHOW_TIDE': (showTide ? 1 : 0) },
     function () { console.log('HourCast: settings synced'); },
     function (err) { console.log('HourCast: settings sync failed ' + JSON.stringify(err)); });
 }
@@ -218,6 +219,7 @@ function sendTide(lat, lon) {
               var minLevel = Infinity, maxLevel = -Infinity;
               var hasData = false;
 
+              var rawTides = {};
               for (var h = 0; h < 12; h++) {
                 var hourTime = new Date(hour0.getTime() + h * 3600000);
                 var levels = [];
@@ -233,16 +235,16 @@ function sendTide(lat, lon) {
                   var avg = levels.reduce(function(a, b) { return a + b; }) / levels.length;
                   minLevel = Math.min(minLevel, avg);
                   maxLevel = Math.max(maxLevel, avg);
-                  tideDict['TIDE_' + h] = Math.round(avg * 100);
+                  rawTides[h] = avg;
                   hasData = true;
                 }
               }
 
-              // Normalize levels to 0-100 range
+              // Normalize raw levels to 0-100 range
               if (hasData && maxLevel > minLevel) {
                 for (var h = 0; h < 12; h++) {
-                  if (tideDict.hasOwnProperty('TIDE_' + h)) {
-                    var norm = Math.round((tideDict['TIDE_' + h] - minLevel) / (maxLevel - minLevel) * 100);
+                  if (rawTides.hasOwnProperty(h)) {
+                    var norm = Math.round((rawTides[h] - minLevel) / (maxLevel - minLevel) * 100);
                     tideDict['TIDE_' + h] = norm;
                   }
                 }

@@ -737,7 +737,10 @@ static void inbox_received(DictionaryIterator *iter, void *context) {
   }
 
   Tuple *st = dict_find(iter, MESSAGE_KEY_SHOW_TIDE);
-  if (st) s_show_tide = st->value->uint32 ? true : false;
+  if (st) {
+    s_show_tide = st->value->uint32 ? true : false;
+    persist_write_bool(3, s_show_tide);   // persist the setting
+  }
 
   const uint32_t TIDE_KEYS[12] = {
     MESSAGE_KEY_TIDE_0, MESSAGE_KEY_TIDE_1, MESSAGE_KEY_TIDE_2,  MESSAGE_KEY_TIDE_3,
