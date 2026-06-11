@@ -1,5 +1,6 @@
 [
   { "type": "heading", "defaultValue": "HourCast" },
+  { "type": "submit", "defaultValue": "Save" },
   {
     "type": "section",
     "items": [
