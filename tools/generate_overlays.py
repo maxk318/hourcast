@@ -71,15 +71,12 @@ plain  = cropk(8)             # white plain cloud (32px)
 light_cl = to_gray(plain, 0.90)   # plain overcast: near-white, dry sky
 dark_cl  = to_gray(plain, 0.43)   # precip cloud: dark, because rain/snow clouds ARE dark
 
-# "Puff only" = the cloud glyph with its little bottom lobe cropped off, so when
-# we stack two of these for a precip cloud there's no small puff dangling below.
-# (The precip cloud is made short by squashing this vertically in
-# precip_cloud_mass -- NOT by cropping it flatter, which would box off the
-# rounded, textured bottom.)
-PUFF_FRAC = 0.66
-_puff = dark_cl.crop((0, 0, dark_cl.width, int(dark_cl.height * PUFF_FRAC)))
-_bb = _puff.getbbox()
-puff_src = _puff.crop(_bb) if _bb else _puff
+# Full dark cloud (trimmed) -- the SAME complete cloud shape as the white
+# overcast cloud, so it keeps its rounded, textured bottom. The precip cloud is
+# a single one of these, squashed short and raised so the sun/moon top peeks
+# above it (no cropped/stacked pieces that would leave a flat cut-off bottom).
+_dbb = dark_cl.getbbox()
+dark_full = dark_cl.crop(_dbb) if _dbb else dark_cl
 marks  = {
     "rain":  dilate(marks_only(15), (-1, 0, 1), (0,), passes=1),       # thicker vertical lines
     "snow":  dilate(marks_only(23), (-1, 0, 1), (-1, 0, 1), passes=1), # bolder asterisks
@@ -143,23 +140,17 @@ def draw_bolt(W, H):
     return im.resize((W, H), Image.LANCZOS)
 
 def precip_cloud_mass(S):
-    # Big two-cloud dark mass kept high in the icon: two equally-big clouds, the
-    # lower one simply shifted down a bit from the upper one, so they read as a
-    # full storm cloud (no small puff on top, no tiny lobe underneath).
+    # A single full dark cloud (rounded, textured bottom intact), squashed short
+    # and raised so the sun/moon top peeks above it. One cloud, not a stack of
+    # cropped pieces -- so the bottom keeps its natural shape, no flat cut-off.
     canvas = Image.new("RGBA", (S, S), (0, 0, 0, 0))
     w = int(S * 0.92)
-    h = int(S * 0.47)                    # SQUASHED height (vs proportional ~0.61S):
-                                         # keeps the full rounded, textured cloud shape
-                                         # but short, so it sits low and the sun/moon
-                                         # top (its phase) peeks above it.
-    cl = puff_src.resize((w, h), Image.LANCZOS)
+    h = int(S * 0.57)                    # squashed (vs proportional ~0.68S) to reveal
+                                         # the celestial top while keeping the full shape
+    cl = dark_full.resize((w, h), Image.LANCZOS)
     x = (S - w) // 2
     bottom = int(S * 0.80)               # anchor the cloud bottom (matches the C mark band)
-    shift = int(S * 0.10)                # lower puff shifted down from the upper
-    lower_y = bottom - h
-    upper_y = lower_y - shift
-    canvas.alpha_composite(cl, (x, upper_y))   # upper puff
-    canvas.alpha_composite(cl, (x, lower_y))   # lower puff, in front
+    canvas.alpha_composite(cl, (x, bottom - h))
     # Snap to pure palette colours (DarkGray body + black texture/outline) so the
     # watch's 64-colour display can't dither the body into noise that hides the
     # thin texture lines. Keeps the texture crisp even at the small 42px ring.
