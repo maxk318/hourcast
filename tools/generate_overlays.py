@@ -160,6 +160,16 @@ def precip_cloud_mass(S):
     upper_y = lower_y - shift
     canvas.alpha_composite(cl, (x, upper_y))   # upper puff
     canvas.alpha_composite(cl, (x, lower_y))   # lower puff, in front
+    # Snap to pure palette colours (DarkGray body + black texture/outline) so the
+    # watch's 64-colour display can't dither the body into noise that hides the
+    # thin texture lines. Keeps the texture crisp even at the small 42px ring.
+    p = canvas.load()
+    for yy in range(S):
+        for xx in range(S):
+            r, g, b, a = p[xx, yy]
+            if a > 0:
+                v = 85 if r >= 80 else 0      # GColorDarkGray body / GColorBlack lines
+                p[xx, yy] = (v, v, v, 255 if a > 128 else a)
     return canvas, bottom
 
 def flake_sprite(diam):
