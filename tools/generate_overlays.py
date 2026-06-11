@@ -161,6 +161,24 @@ def precip_cloud_mass(S):
             if a > 0:
                 v = 85 if r >= 80 else 0      # GColorDarkGray body / GColorBlack lines
                 p[xx, yy] = (v, v, v, 255 if a > 128 else a)
+    # Despeckle: drop tiny stray gray blobs pinched off the cloud edges by the
+    # squash (e.g. the out-of-place dots at the bottom corners).
+    visited = [[False] * S for _ in range(S)]
+    def is_body(xx, yy):
+        c = p[xx, yy]; return c[3] > 0 and c[0] == 85
+    for yy in range(S):
+        for xx in range(S):
+            if is_body(xx, yy) and not visited[yy][xx]:
+                stack = [(xx, yy)]; visited[yy][xx] = True; cells = [(xx, yy)]
+                while stack:
+                    ax, ay = stack.pop()
+                    for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+                        nx, ny = ax + dx, ay + dy
+                        if 0 <= nx < S and 0 <= ny < S and is_body(nx, ny) and not visited[ny][nx]:
+                            visited[ny][nx] = True; stack.append((nx, ny)); cells.append((nx, ny))
+                if len(cells) < 20:
+                    for cx, cy in cells:
+                        p[cx, cy] = (0, 0, 0, 0)
     return canvas, bottom
 
 def flake_sprite(diam):
