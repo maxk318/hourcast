@@ -499,20 +499,53 @@ static int tide_fill_pct(int v) {
   return 100;
 }
 
-// A blue tank centered at c: straight sides/bottom, wavy top, filled to pct.
-static void draw_tide_cell(GContext *ctx, GPoint c, int S, int pct) {
+// A blue tank centered at c: wavy top, rocky border, sub-surface shadow wave.
+// phase offsets the wave start so adjacent cells look different.
+static void draw_tide_cell(GContext *ctx, GPoint c, int S, int pct, int32_t phase) {
   int x0 = c.x - S / 2, x1 = c.x + S / 2;
   int top = c.y - S / 2, bottom = c.y + S / 2;
-  int amp = S / 8; if (amp < 2) amp = 2;  // ~12% of cell — subtle wave
-  int mean = bottom - (pct * S) / 100;   // mean water-surface y
-  graphics_context_set_stroke_color(ctx, GColorBlueMoon);
-  graphics_context_set_stroke_width(ctx, 1);
+  int amp = S / 8; if (amp < 2) amp = 2;
+  int mean = bottom - (pct * S) / 100;
   int width = x1 - x0; if (width < 1) width = 1;
+  int sub = amp + 3;   // px below surface for the shadow wave
+
+  graphics_context_set_stroke_width(ctx, 1);
+
+  // 1. Blue water fill: wave surface down to bottom
+  graphics_context_set_stroke_color(ctx, GColorBlueMoon);
   for (int x = x0; x <= x1; x++) {
-    int32_t ang = (int32_t)(x - x0) * TRIG_MAX_ANGLE / width;  // exactly 1 cycle
+    int32_t ang = (int32_t)(x - x0) * TRIG_MAX_ANGLE / width + phase;
     int surf = mean - (amp * sin_lookup(ang)) / TRIG_MAX_RATIO;
-    if (surf < top) surf = top;            // squared off at the top corners
+    if (surf < top) surf = top;
     if (surf < bottom) graphics_draw_line(ctx, GPoint(x, surf), GPoint(x, bottom));
+  }
+
+  // 2. Sub-surface shadow wave (black), traces the same curve shifted down
+  graphics_context_set_stroke_color(ctx, GColorBlack);
+  for (int x = x0; x <= x1; x++) {
+    int32_t ang = (int32_t)(x - x0) * TRIG_MAX_ANGLE / width + phase;
+    int surf = mean - (amp * sin_lookup(ang)) / TRIG_MAX_RATIO;
+    int sy = surf + sub;
+    if (sy > top && sy < bottom) graphics_draw_pixel(ctx, GPoint(x, sy));
+  }
+
+  // 3. Rocky border: left, right, bottom walls
+  // Base in dark gray, then light gray highlights every 4px for stone texture
+  graphics_context_set_stroke_color(ctx, GColorDarkGray);
+  for (int y = top; y <= bottom; y++) {
+    graphics_draw_pixel(ctx, GPoint(x0 - 1, y));
+    graphics_draw_pixel(ctx, GPoint(x1 + 1, y));
+  }
+  for (int x = x0 - 1; x <= x1 + 1; x++) {
+    graphics_draw_pixel(ctx, GPoint(x, bottom + 1));
+  }
+  graphics_context_set_stroke_color(ctx, GColorLightGray);
+  for (int y = top; y <= bottom; y += 4) {
+    graphics_draw_pixel(ctx, GPoint(x0 - 1, y));
+    if (y + 2 <= bottom) graphics_draw_pixel(ctx, GPoint(x1 + 1, y + 2));
+  }
+  for (int x = x0; x <= x1 + 1; x += 4) {
+    graphics_draw_pixel(ctx, GPoint(x, bottom + 1));
   }
 }
 
@@ -521,12 +554,13 @@ static void draw_tide_cell(GContext *ctx, GPoint c, int S, int pct) {
 static void draw_tide(GContext *ctx, GPoint center, int hw, int hh) {
   if (!s_show_tide || !s_tide_valid) return;
   for (int k = 0; k < 12; k++) {
-    if (!s_wx_valid[k]) continue;          // only where there is a forecast hour
+    if (!s_wx_valid[k]) continue;
     int32_t angle = k * TRIG_MAX_ANGLE / 12;
     GPoint edge = point_on_rect(center, hw, hh, angle);
     GPoint p = GPoint(center.x + (edge.x - center.x) * TIDE_RING_PCT / 100,
                       center.y + (edge.y - center.y) * TIDE_RING_PCT / 100);
-    draw_tide_cell(ctx, p, TIDE_CELL, tide_fill_pct(s_tide[k]));
+    int32_t phase = (int32_t)k * TRIG_MAX_ANGLE * 5 / 12;  // unique phase per cell
+    draw_tide_cell(ctx, p, TIDE_CELL, tide_fill_pct(s_tide[k]), phase);
   }
 }
 
