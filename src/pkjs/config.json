@@ -8,7 +8,7 @@
         "type": "select",
         "messageKey": "DISPLAY_MODE",
         "label": "Inner Ring",
-        "defaultValue": "1",
+        "defaultValue": "0",
         "description": "What to show on the inner ring. Clock Numbers: hour numerals. Hashes: tick marks with larger weather icons. Temperature: hourly temps, uncovering the weather icons and moons.",
         "options": [
           { "label": "Clock Numbers", "value": "0" },

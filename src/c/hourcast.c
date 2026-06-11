@@ -39,7 +39,7 @@ static char   s_sunrise_str[8] = "", s_sunset_str[8] = "";
 //               1 = hash marks + bigger icons (temp on each icon),
 //               2 = temps on the inner ring (icons uncovered, spotted moons)
 enum { MODE_NUMERALS = 0, MODE_HASH = 1, MODE_TEMPS = 2 };
-static int    s_display_mode = MODE_HASH;          // setting: default inner-ring style
+static int    s_display_mode = MODE_NUMERALS;      // setting: default inner-ring style
 
 // ---- helpers ----
 static GPoint point_on_circle(GPoint center, int radius, int32_t angle) {

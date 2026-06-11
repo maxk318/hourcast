@@ -53,10 +53,12 @@ function loadThresholds() {
 // the watch's persisted setting to its default, but the phone still holds the
 // real choice in clay-settings — without this they can load out of sync.
 function syncSettingsToWatch() {
+  // Phone is the source of truth for display mode: always push it so the watch
+  // can't diverge from what the settings page shows. Default is 0 (Clock Numbers).
   var s = {};
   try { s = JSON.parse(localStorage.getItem('clay-settings')) || {}; } catch (e) { /* */ }
-  if (!s.hasOwnProperty('DISPLAY_MODE')) return;   // never configured -> use watch default
-  Pebble.sendAppMessage({ 'DISPLAY_MODE': parseInt(s.DISPLAY_MODE, 10) || 0 },
+  var mode = s.hasOwnProperty('DISPLAY_MODE') ? (parseInt(s.DISPLAY_MODE, 10) || 0) : 0;
+  Pebble.sendAppMessage({ 'DISPLAY_MODE': mode },
     function () { console.log('HourCast: settings synced'); },
     function (err) { console.log('HourCast: settings sync failed ' + JSON.stringify(err)); });
 }
