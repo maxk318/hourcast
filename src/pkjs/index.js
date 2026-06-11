@@ -200,20 +200,15 @@ function packIcon(isDay, cell) {
 }
 
 function sendTide(lat, lon) {
-  // Fetch water level data from NOAA for the nearest tide station
-  // Use a simple station lookup: quantize location to find closest station from a small set
+  // Fetch predicted water levels from NOAA for the nearest tide station.
+  // Use yyyyMMdd dates (no time, no spaces) to avoid URL encoding issues.
   var now = new Date();
-  var beginDate = new Date(now.getTime() - 6 * 3600000);
-  var endDate = new Date(now.getTime() + 18 * 3600000);
-
-  // NOAA date format: "yyyyMMdd HH:mm" in UTC (we request time_zone=gmt)
   function pad(n) { return (n < 10 ? '0' : '') + n; }
-  function noaaDate(d) {
-    return d.getUTCFullYear() + pad(d.getUTCMonth() + 1) + pad(d.getUTCDate()) +
-           ' ' + pad(d.getUTCHours()) + ':' + pad(d.getUTCMinutes());
+  function noaaDay(d) {
+    return d.getUTCFullYear() + pad(d.getUTCMonth() + 1) + pad(d.getUTCDate());
   }
-  var begin = noaaDate(beginDate);
-  var end = noaaDate(endDate);
+  var today = noaaDay(now);
+  var tomorrow = noaaDay(new Date(now.getTime() + 86400000));
 
   // For now, use major US coastal stations. TODO: implement proper nearest-station lookup
   var stations = [
@@ -242,26 +237,26 @@ function sendTide(lat, lon) {
 
   console.log('HourCast: using tide station ' + best.name + ' (' + best.id + ')');
 
-  // Request hourly interval in GMT; begin 1 hour back so we always have slot 0
+  // predictions product, datum MLLW, GMT, two full UTC days to cover any hour window
   var tideUrl = 'https://api.tidesandcurrents.noaa.gov/api/prod/datagetter?station=' + best.id +
-               '&begin_date=' + begin + '&end_date=' + end +
-               '&product=water_level&datum=msl&format=json&units=metric&time_zone=gmt';
+               '&begin_date=' + today + '&end_date=' + tomorrow +
+               '&product=predictions&datum=MLLW&format=json&units=metric&time_zone=gmt';
 
   var xhr = new XMLHttpRequest();
   xhr.onload = function () {
     try {
       var tides = JSON.parse(this.responseText);
-      if (!tides || !tides.data) {
-        console.log('HourCast: no tide data - ' + JSON.stringify(tides && tides.error));
+      if (!tides || !tides.predictions) {
+        console.log('HourCast: no tide predictions - ' + JSON.stringify(tides && tides.error));
         return;
       }
 
-      // Build a map of utcHour -> level from NOAA response.
-      // NOAA timestamps are "YYYY-MM-DD HH:MM" in UTC — parse explicitly with T+Z.
-      var levelByUtcHour = {};
-      for (var t = 0; t < tides.data.length; t++) {
-        var ts = new Date(tides.data[t].t.replace(' ', 'T') + 'Z');
-        levelByUtcHour[ts.getTime()] = parseFloat(tides.data[t].v);
+      // Build a map of UTC millisecond timestamp -> level.
+      // NOAA timestamps are "YYYY-MM-DD HH:MM" in UTC — parse with T+Z suffix.
+      var levelByUtcMs = {};
+      for (var t = 0; t < tides.predictions.length; t++) {
+        var ts = new Date(tides.predictions[t].t.replace(' ', 'T') + 'Z');
+        levelByUtcMs[ts.getTime()] = parseFloat(tides.predictions[t].v);
       }
 
       // Current UTC hour (truncated to top of hour)
@@ -275,8 +270,8 @@ function sendTide(lat, lon) {
 
       for (var h = 0; h < 12; h++) {
         var ms = utcHour0.getTime() + h * 3600000;
-        if (levelByUtcHour.hasOwnProperty(ms)) {
-          var v = levelByUtcHour[ms];
+        if (levelByUtcMs.hasOwnProperty(ms)) {
+          var v = levelByUtcMs[ms];
           minLevel = Math.min(minLevel, v);
           maxLevel = Math.max(maxLevel, v);
           rawTides[h] = v;
