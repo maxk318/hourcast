@@ -26,6 +26,14 @@
         "defaultValue": false
       },
       {
+        "type": "input",
+        "messageKey": "TIDE_STATION",
+        "id": "tideStation",
+        "label": "Tide station",
+        "defaultValue": "None nearby",
+        "attributes": { "readonly": "readonly" }
+      },
+      {
         "type": "toggle",
         "messageKey": "SHOW_DATE",
         "label": "Show date",

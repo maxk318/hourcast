@@ -71,6 +71,7 @@
       "CLOUD_CLEAR",
       "STORM_CAPE",
       "SHOW_TIDE",
+      "TIDE_STATION",
       "SHOW_DATE",
       "SHOW_BATTERY",
       "BATTERY_THRESHOLD",

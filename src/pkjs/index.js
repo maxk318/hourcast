@@ -246,6 +246,7 @@ function sendTide(lat, lon) {
   }
 
   console.log('HourCast: using tide station ' + best.name + ' (' + best.id + ')');
+  setClaySetting('TIDE_STATION', best.name);
 
   // predictions product, datum MLLW, GMT, two full UTC days to cover any hour window
   var tideUrl = 'https://api.tidesandcurrents.noaa.gov/api/prod/datagetter?station=' + best.id +
