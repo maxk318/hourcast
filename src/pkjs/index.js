@@ -200,95 +200,104 @@ function packIcon(isDay, cell) {
 }
 
 function sendTide(lat, lon) {
-  // Fetch tide data from NOAA and send to watch (async, may arrive after weather)
-  var url = 'https://api.tidesandcurrents.noaa.gov/api/prod/datagetter?lat=' + lat +
-            '&lon=' + lon + '&type=stations&format=json';
-  console.log('HourCast: fetching NOAA tide stations');
+  // Fetch water level data from NOAA for the nearest tide station
+  // Use a simple station lookup: quantize location to find closest station from a small set
+  var now = new Date();
+  var beginDate = new Date(now.getTime() - 6 * 3600000);
+  var endDate = new Date(now.getTime() + 18 * 3600000);
+
+  function pad(n) { return (n < 10 ? '0' : '') + n; }
+  var begin = beginDate.getFullYear() + pad(beginDate.getMonth() + 1) + pad(beginDate.getDate()) +
+             pad(beginDate.getHours()) + pad(beginDate.getMinutes());
+  var end = endDate.getFullYear() + pad(endDate.getMonth() + 1) + pad(endDate.getDate()) +
+           pad(endDate.getHours()) + pad(endDate.getMinutes());
+
+  // For now, use major US coastal stations. TODO: implement proper nearest-station lookup
+  var stations = [
+    {id: '8638610', name: 'Sewells Point, VA', lat: 36.9428, lon: -76.3286},
+    {id: '8658163', name: 'Charleston, SC', lat: 32.7769, lon: -79.5268},
+    {id: '8722670', name: 'Miami, FL', lat: 25.7667, lon: -80.1628},
+    {id: '8727520', name: 'Key West, FL', lat: 24.5627, lon: -81.8093},
+    {id: '8454000', name: 'Galveston, TX', lat: 29.3186, lon: -94.7878},
+    {id: '8467150', name: 'Biloxi, MS', lat: 30.3869, lon: -88.8829},
+    {id: '8571892', name: 'New Orleans, LA', lat: 29.9186, lon: -90.2667},
+    {id: '8638386', name: 'Norfolk, VA', lat: 36.8457, lon: -76.2982}
+  ];
+
+  // Find nearest station
+  var best = null, bestDist = Infinity;
+  for (var s = 0; s < stations.length; s++) {
+    var dx = stations[s].lat - lat, dy = stations[s].lon - lon;
+    var dist = dx * dx + dy * dy;
+    if (dist < bestDist) { bestDist = dist; best = stations[s]; }
+  }
+
+  if (!best) {
+    console.log('HourCast: no tide stations available');
+    return;
+  }
+
+  console.log('HourCast: using tide station ' + best.name + ' (' + best.id + ')');
+
+  var tideUrl = 'https://api.tidesandcurrents.noaa.gov/api/prod/datagetter?station=' + best.id +
+               '&begin_date=' + begin + '&end_date=' + end + '&product=water_level&datum=msl&format=json&units=metric&time_zone=gmt';
+
   var xhr = new XMLHttpRequest();
   xhr.onload = function () {
     try {
-      var j = JSON.parse(this.responseText);
-      if (j && j.stations && j.stations.length > 0) {
-        var stationId = j.stations[0].id;
-        console.log('HourCast: using NOAA station ' + stationId);
+      var tides = JSON.parse(this.responseText);
+      if (tides && tides.data) {
+        var hour0 = new Date(now);
+        hour0.setMinutes(0);
+        hour0.setSeconds(0);
+        hour0.setMilliseconds(0);
 
-        var now = new Date();
-        var beginDate = new Date(now.getTime() - 6 * 3600000);  // 6 hours ago
-        var endDate = new Date(now.getTime() + 18 * 3600000);   // 18 hours ahead
+        var tideDict = {};
+        var rawTides = {};
+        var minLevel = Infinity, maxLevel = -Infinity;
 
-        function pad(n) { return (n < 10 ? '0' : '') + n; }
-        var begin = beginDate.getFullYear() + pad(beginDate.getMonth() + 1) + pad(beginDate.getDate()) +
-                   pad(beginDate.getHours()) + pad(beginDate.getMinutes());
-        var end = endDate.getFullYear() + pad(endDate.getMonth() + 1) + pad(endDate.getDate()) +
-                 pad(endDate.getHours()) + pad(endDate.getMinutes());
+        // For each hour slot, find all readings in that hour and average them
+        for (var h = 0; h < 12; h++) {
+          var hourStart = new Date(hour0.getTime() + h * 3600000);
+          var hourEnd = new Date(hourStart.getTime() + 3600000);
+          var levels = [];
 
-        var tideUrl = 'https://api.tidesandcurrents.noaa.gov/api/prod/datagetter?station=' + stationId +
-                     '&begin_date=' + begin + '&end_date=' + end + '&product=water_level&datum=msl&format=json&units=metric';
-
-        var tideXhr = new XMLHttpRequest();
-        tideXhr.onload = function () {
-          try {
-            var tides = JSON.parse(this.responseText);
-            if (tides && tides.data) {
-              var hour0 = new Date(now);
-              hour0.setMinutes(0);
-              hour0.setSeconds(0);
-              hour0.setMilliseconds(0);
-
-              var tideDict = {};
-              var rawTides = {};
-              var minLevel = Infinity, maxLevel = -Infinity;
-
-              // For each hour slot, find all readings in that hour and average them
-              for (var h = 0; h < 12; h++) {
-                var hourStart = new Date(hour0.getTime() + h * 3600000);
-                var hourEnd = new Date(hourStart.getTime() + 3600000);
-                var levels = [];
-
-                for (var t = 0; t < tides.data.length; t++) {
-                  var time = new Date(tides.data[t].t);
-                  if (time >= hourStart && time < hourEnd) {
-                    levels.push(parseFloat(tides.data[t].v));
-                  }
-                }
-
-                if (levels.length > 0) {
-                  var avg = levels.reduce(function(a, b) { return a + b; }) / levels.length;
-                  minLevel = Math.min(minLevel, avg);
-                  maxLevel = Math.max(maxLevel, avg);
-                  rawTides[h] = avg;
-                }
-              }
-
-              // Normalize raw levels to 0-100 range
-              if (Object.keys(rawTides).length > 0 && maxLevel > minLevel) {
-                for (var h = 0; h < 12; h++) {
-                  if (rawTides.hasOwnProperty(h)) {
-                    var norm = Math.round((rawTides[h] - minLevel) / (maxLevel - minLevel) * 100);
-                    tideDict['TIDE_' + h] = norm;
-                  }
-                }
-                tideDict['TIDE_VALID'] = 1;
-                console.log('HourCast: sending tide data');
-                Pebble.sendAppMessage(tideDict,
-                  function () { console.log('HourCast: tide sent'); },
-                  function (e) { console.log('HourCast: tide send failed ' + JSON.stringify(e)); });
-              } else {
-                console.log('HourCast: no tide data for this location');
-              }
+          for (var t = 0; t < tides.data.length; t++) {
+            var time = new Date(tides.data[t].t);
+            if (time >= hourStart && time < hourEnd) {
+              levels.push(parseFloat(tides.data[t].v));
             }
-          } catch (e) { console.log('HourCast: tide parse error ' + e); }
-        };
-        tideXhr.onerror = function () { console.log('HourCast: NOAA tide fetch error'); };
-        tideXhr.open('GET', tideUrl);
-        tideXhr.send();
-      } else {
-        console.log('HourCast: no NOAA stations found');
+          }
+
+          if (levels.length > 0) {
+            var avg = levels.reduce(function(a, b) { return a + b; }) / levels.length;
+            minLevel = Math.min(minLevel, avg);
+            maxLevel = Math.max(maxLevel, avg);
+            rawTides[h] = avg;
+          }
+        }
+
+        // Normalize raw levels to 0-100 range
+        if (Object.keys(rawTides).length > 0 && maxLevel > minLevel) {
+          for (var h = 0; h < 12; h++) {
+            if (rawTides.hasOwnProperty(h)) {
+              var norm = Math.round((rawTides[h] - minLevel) / (maxLevel - minLevel) * 100);
+              tideDict['TIDE_' + h] = norm;
+            }
+          }
+          tideDict['TIDE_VALID'] = 1;
+          console.log('HourCast: sending tide data (' + Object.keys(rawTides).length + ' hours)');
+          Pebble.sendAppMessage(tideDict,
+            function () { console.log('HourCast: tide sent'); },
+            function (e) { console.log('HourCast: tide send failed ' + JSON.stringify(e)); });
+        } else {
+          console.log('HourCast: no valid tide data');
+        }
       }
-    } catch (e) { console.log('HourCast: NOAA station lookup error ' + e); }
+    } catch (e) { console.log('HourCast: tide parse error ' + e); }
   };
-  xhr.onerror = function () { console.log('HourCast: NOAA station fetch error'); };
-  xhr.open('GET', url);
+  xhr.onerror = function () { console.log('HourCast: tide fetch error'); };
+  xhr.open('GET', tideUrl);
   xhr.send();
 }
 
