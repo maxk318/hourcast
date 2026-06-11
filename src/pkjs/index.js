@@ -239,60 +239,62 @@ function sendTide(lat, lon) {
 
   console.log('HourCast: using tide station ' + best.name + ' (' + best.id + ')');
 
+  // Request hourly interval in GMT; begin 1 hour back so we always have slot 0
   var tideUrl = 'https://api.tidesandcurrents.noaa.gov/api/prod/datagetter?station=' + best.id +
-               '&begin_date=' + begin + '&end_date=' + end + '&product=water_level&datum=msl&format=json&units=metric&time_zone=gmt';
+               '&begin_date=' + begin + '&end_date=' + end +
+               '&product=water_level&datum=msl&format=json&units=metric&time_zone=gmt&interval=hourly';
 
   var xhr = new XMLHttpRequest();
   xhr.onload = function () {
     try {
       var tides = JSON.parse(this.responseText);
-      if (tides && tides.data) {
-        var hour0 = new Date(now);
-        hour0.setMinutes(0);
-        hour0.setSeconds(0);
-        hour0.setMilliseconds(0);
+      if (!tides || !tides.data) {
+        console.log('HourCast: no tide data - ' + JSON.stringify(tides && tides.error));
+        return;
+      }
 
+      // Build a map of utcHour -> level from NOAA response.
+      // NOAA timestamps are "YYYY-MM-DD HH:MM" in UTC — parse explicitly with T+Z.
+      var levelByUtcHour = {};
+      for (var t = 0; t < tides.data.length; t++) {
+        var ts = new Date(tides.data[t].t.replace(' ', 'T') + 'Z');
+        levelByUtcHour[ts.getTime()] = parseFloat(tides.data[t].v);
+      }
+
+      // Current UTC hour (truncated to top of hour)
+      var utcHour0 = new Date(now);
+      utcHour0.setUTCMinutes(0);
+      utcHour0.setUTCSeconds(0);
+      utcHour0.setUTCMilliseconds(0);
+
+      var rawTides = {};
+      var minLevel = Infinity, maxLevel = -Infinity;
+
+      for (var h = 0; h < 12; h++) {
+        var ms = utcHour0.getTime() + h * 3600000;
+        if (levelByUtcHour.hasOwnProperty(ms)) {
+          var v = levelByUtcHour[ms];
+          minLevel = Math.min(minLevel, v);
+          maxLevel = Math.max(maxLevel, v);
+          rawTides[h] = v;
+        }
+      }
+
+      // Normalize to 0-100
+      if (Object.keys(rawTides).length > 0 && maxLevel > minLevel) {
         var tideDict = {};
-        var rawTides = {};
-        var minLevel = Infinity, maxLevel = -Infinity;
-
-        // For each hour slot, find all readings in that hour and average them
         for (var h = 0; h < 12; h++) {
-          var hourStart = new Date(hour0.getTime() + h * 3600000);
-          var hourEnd = new Date(hourStart.getTime() + 3600000);
-          var levels = [];
-
-          for (var t = 0; t < tides.data.length; t++) {
-            var time = new Date(tides.data[t].t);
-            if (time >= hourStart && time < hourEnd) {
-              levels.push(parseFloat(tides.data[t].v));
-            }
-          }
-
-          if (levels.length > 0) {
-            var avg = levels.reduce(function(a, b) { return a + b; }) / levels.length;
-            minLevel = Math.min(minLevel, avg);
-            maxLevel = Math.max(maxLevel, avg);
-            rawTides[h] = avg;
+          if (rawTides.hasOwnProperty(h)) {
+            tideDict['TIDE_' + h] = Math.round((rawTides[h] - minLevel) / (maxLevel - minLevel) * 100);
           }
         }
-
-        // Normalize raw levels to 0-100 range
-        if (Object.keys(rawTides).length > 0 && maxLevel > minLevel) {
-          for (var h = 0; h < 12; h++) {
-            if (rawTides.hasOwnProperty(h)) {
-              var norm = Math.round((rawTides[h] - minLevel) / (maxLevel - minLevel) * 100);
-              tideDict['TIDE_' + h] = norm;
-            }
-          }
-          tideDict['TIDE_VALID'] = 1;
-          console.log('HourCast: sending tide data (' + Object.keys(rawTides).length + ' hours)');
-          Pebble.sendAppMessage(tideDict,
-            function () { console.log('HourCast: tide sent'); },
-            function (e) { console.log('HourCast: tide send failed ' + JSON.stringify(e)); });
-        } else {
-          console.log('HourCast: no valid tide data');
-        }
+        tideDict['TIDE_VALID'] = 1;
+        console.log('HourCast: sending tide data (' + Object.keys(rawTides).length + ' hours)');
+        Pebble.sendAppMessage(tideDict,
+          function () { console.log('HourCast: tide sent'); },
+          function (e) { console.log('HourCast: tide send failed ' + JSON.stringify(e)); });
+      } else {
+        console.log('HourCast: no matching tide hours (min=' + minLevel + ' max=' + maxLevel + ' slots=' + Object.keys(rawTides).length + ')');
       }
     } catch (e) { console.log('HourCast: tide parse error ' + e); }
   };
