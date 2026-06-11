@@ -120,6 +120,11 @@ Pebble.addEventListener('webviewclosed', function (e) {
     dict[messageKeys.DISPLAY_MODE] = parseInt(dict[messageKeys.DISPLAY_MODE], 10) || 0;
   }
 
+  // booleans need to be 0/1 for the watch
+  if (dict.hasOwnProperty(messageKeys.SHOW_TIDE)) {
+    dict[messageKeys.SHOW_TIDE] = dict[messageKeys.SHOW_TIDE] ? 1 : 0;
+  }
+
   Pebble.sendAppMessage(dict,
     function () { console.log('HourCast: settings sent'); },
     function (err) { console.log('HourCast: settings send failed ' + JSON.stringify(err)); });
@@ -197,11 +202,14 @@ function packIcon(isDay, cell) {
 function sendTide(lat, lon) {
   // Fetch tide data from tide-api.com and send to watch (async, may arrive after weather)
   var url = 'https://api.tide-forecast.com/sites?lat=' + lat + '&lon=' + lon + '&type=current';
+  console.log('HourCast: fetching tides from ' + url);
   var xhr = new XMLHttpRequest();
   xhr.onload = function () {
+    console.log('HourCast: tide sites response: ' + this.responseText.substring(0, 100));
     try {
       var j = JSON.parse(this.responseText);
       if (j && j.length > 0) {
+        console.log('HourCast: found ' + j.length + ' tide sites, using ' + j[0].id);
         var site = j[0];
         var tideUrl = 'https://api.tide-forecast.com/v1/tide_station?id=' + site.id + '&num_tides=50';
         var tideXhr = new XMLHttpRequest();
