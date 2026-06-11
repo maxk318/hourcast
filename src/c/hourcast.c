@@ -554,23 +554,29 @@ static void draw_tide_cell(GContext *ctx, GPoint c, int S, int pct, int32_t phas
     if (sy > top && sy < bottom) graphics_draw_pixel(ctx, GPoint(x, sy));
   }
 
-  // 3. Rocky border: side walls (straight segment only), then bottom
-  // Side walls stop CORNER_R px above the bottom to expose the rounded corners
+  // 3. Rocky border: 2px wide — outer pixel + inner pixel encroaching on water
+  // Side walls stop CORNER_R px above bottom to expose the rounded corners
   for (int y = top; y <= bottom - CORNER_R; y++) {
     graphics_context_set_stroke_color(ctx, rock_color(x0 - 1, y));
     graphics_draw_pixel(ctx, GPoint(x0 - 1, y));
+    graphics_context_set_stroke_color(ctx, rock_color(x0, y));
+    graphics_draw_pixel(ctx, GPoint(x0, y));
     graphics_context_set_stroke_color(ctx, rock_color(x1 + 1, y));
     graphics_draw_pixel(ctx, GPoint(x1 + 1, y));
+    graphics_context_set_stroke_color(ctx, rock_color(x1, y));
+    graphics_draw_pixel(ctx, GPoint(x1, y));
   }
-  // Bottom wall spans only the straight segment between the corner arcs
+  // Bottom wall: outer row + inner row encroaching on water
   for (int x = x0 + CORNER_R; x <= x1 - CORNER_R; x++) {
     graphics_context_set_stroke_color(ctx, rock_color(x, bottom + 1));
     graphics_draw_pixel(ctx, GPoint(x, bottom + 1));
+    graphics_context_set_stroke_color(ctx, rock_color(x, bottom));
+    graphics_draw_pixel(ctx, GPoint(x, bottom));
   }
 }
 
 #define TIDE_RING_PCT 50   // inner radius for the tanks (tune on emulator)
-#define TIDE_CELL     26   // tank size (px)
+#define TIDE_CELL     22   // tank size (px)
 static void draw_tide(GContext *ctx, GPoint center, int hw, int hh) {
   if (!s_show_tide || !s_tide_valid) return;
   for (int k = 0; k < 12; k++) {
