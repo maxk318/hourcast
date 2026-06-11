@@ -206,11 +206,14 @@ function sendTide(lat, lon) {
   var beginDate = new Date(now.getTime() - 6 * 3600000);
   var endDate = new Date(now.getTime() + 18 * 3600000);
 
+  // NOAA date format: "yyyyMMdd HH:mm" in UTC (we request time_zone=gmt)
   function pad(n) { return (n < 10 ? '0' : '') + n; }
-  var begin = beginDate.getFullYear() + pad(beginDate.getMonth() + 1) + pad(beginDate.getDate()) +
-             pad(beginDate.getHours()) + pad(beginDate.getMinutes());
-  var end = endDate.getFullYear() + pad(endDate.getMonth() + 1) + pad(endDate.getDate()) +
-           pad(endDate.getHours()) + pad(endDate.getMinutes());
+  function noaaDate(d) {
+    return d.getUTCFullYear() + pad(d.getUTCMonth() + 1) + pad(d.getUTCDate()) +
+           ' ' + pad(d.getUTCHours()) + ':' + pad(d.getUTCMinutes());
+  }
+  var begin = noaaDate(beginDate);
+  var end = noaaDate(endDate);
 
   // For now, use major US coastal stations. TODO: implement proper nearest-station lookup
   var stations = [
@@ -242,7 +245,7 @@ function sendTide(lat, lon) {
   // Request hourly interval in GMT; begin 1 hour back so we always have slot 0
   var tideUrl = 'https://api.tidesandcurrents.noaa.gov/api/prod/datagetter?station=' + best.id +
                '&begin_date=' + begin + '&end_date=' + end +
-               '&product=water_level&datum=msl&format=json&units=metric&time_zone=gmt&interval=hourly';
+               '&product=water_level&datum=msl&format=json&units=metric&time_zone=gmt';
 
   var xhr = new XMLHttpRequest();
   xhr.onload = function () {
