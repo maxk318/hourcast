@@ -1,6 +1,9 @@
 // HourCast companion: fetch Open-Meteo and send 12 hourly slots + current.
-// Each icon is encoded as: night*10 + state, where state =
+// Each icon is encoded as: night*100 + state*10 + count, where state =
 //   0 clear, 1 partly, 2 overcast, 3 rain, 4 snow, 5 storm
+// and count (0..4) = how many rays/flakes/bolts to draw for precip states,
+// derived from precipitation probability. The classification cutoffs are
+// user-editable on the settings page (see THRESHOLDS / loadThresholds / config.json).
 
 var Clay = require('pebble-clay');
 var clayConfig = require('./config.json');
@@ -20,6 +23,30 @@ function loadLocationConfig() {
     manualLat = c.lat || null;
     manualLon = c.lon || null;
   } catch (e) { /* defaults */ }
+}
+
+// Classification cutoffs — defaults match the settings page defaults. All are
+// user-editable; loadThresholds() pulls any saved values from clay-settings.
+var THRESHOLDS = {
+  pop1: 10, pop2: 25, pop3: 40, pop4: 55,   // POP %: lower bound for 1/2/3/4 marks
+  overcast: 90, clear: 15,                   // cloud cover %: >=overcast full, <clear clear
+  snowTemp: 34,                              // <= this (°F) precip renders as snow
+  stormCape: 1500                            // >= this CAPE (J/kg) precip renders as storm
+};
+
+function loadThresholds() {
+  try {
+    var s = JSON.parse(localStorage.getItem('clay-settings')) || {};
+    function num(k, d) { var v = parseFloat(s[k]); return isNaN(v) ? d : v; }
+    THRESHOLDS.pop1 = num('POP1', 10);
+    THRESHOLDS.pop2 = num('POP2', 25);
+    THRESHOLDS.pop3 = num('POP3', 40);
+    THRESHOLDS.pop4 = num('POP4', 55);
+    THRESHOLDS.overcast = num('CLOUD_OVERCAST', 90);
+    THRESHOLDS.clear = num('CLOUD_CLEAR', 15);
+    THRESHOLDS.snowTemp = num('SNOW_TEMP_F', 34);
+    THRESHOLDS.stormCape = num('STORM_CAPE', 1500);
+  } catch (e) { /* keep defaults */ }
 }
 
 // Push saved display settings to the watch on launch. A fresh sideload resets
@@ -96,6 +123,7 @@ Pebble.addEventListener('webviewclosed', function (e) {
     function () { console.log('HourCast: settings sent'); },
     function (err) { console.log('HourCast: settings send failed ' + JSON.stringify(err)); });
 
+  loadThresholds();   // pick up any edited classification cutoffs before refetch
   fetchWeather();
 });
 
@@ -136,20 +164,39 @@ function sunsetBefore(j, hourIso) {   // the sunset that began this night
   return best ? hhmm(best) : '';
 }
 
-function wxState(code) {
-  if (code === 0) return 0;                              // clear
-  if (code === 1 || code === 2) return 1;                // partly
-  if (code === 3 || code === 45 || code === 48) return 2; // overcast / fog
-  if ((code >= 51 && code <= 67) || (code >= 80 && code <= 82)) return 3; // drizzle/rain
-  if ((code >= 71 && code <= 77) || code === 85 || code === 86) return 4; // snow
-  if (code >= 95) return 5;                              // thunderstorm
-  return 2;                                              // default: overcast
+function num0(v) { return (typeof v === 'number' && !isNaN(v)) ? v : 0; }
+
+// Probability-driven classification. Returns { state, count }:
+//   count  = number of marks (0..4) from precipitation probability buckets
+//   state  = 0 clear / 1 partly / 2 overcast (when count 0), else
+//            3 rain / 4 snow / 5 storm (the precip type carrying the marks)
+// POP sets HOW MANY marks; temp/CAPE/code decide WHICH kind (Open-Meteo gives
+// only one generic precip probability, not separate snow/storm odds).
+function classify(code, pop, cloud, tempF, cape, snow) {
+  var T = THRESHOLDS;
+  pop = num0(pop); cloud = num0(cloud); cape = num0(cape); snow = num0(snow);
+  var count = pop >= T.pop4 ? 4 : pop >= T.pop3 ? 3 : pop >= T.pop2 ? 2 : pop >= T.pop1 ? 1 : 0;
+  if (count === 0) {
+    var st = cloud >= T.overcast ? 2 : (cloud < T.clear ? 0 : 1);
+    return { state: st, count: 0 };
+  }
+  var snowCode = (code >= 71 && code <= 77) || code === 85 || code === 86;
+  var state;
+  if (tempF <= T.snowTemp || snow > 0 || snowCode) state = 4;         // snow (wins over storm)
+  else if (code >= 95 || cape >= T.stormCape) state = 5;             // storm
+  else state = 3;                                                     // rain
+  return { state: state, count: count };
+}
+
+// Pack a classified cell + day/night into the icon int the watch decodes.
+function packIcon(isDay, cell) {
+  return (isDay ? 0 : 100) + cell.state * 10 + cell.count;
 }
 
 function sendWeather(lat, lon) {
   var url = 'https://api.open-meteo.com/v1/forecast' +
     '?latitude=' + lat + '&longitude=' + lon +
-    '&hourly=weather_code,is_day,temperature_2m' +
+    '&hourly=weather_code,is_day,temperature_2m,precipitation_probability,cloud_cover,cape,snowfall' +
     '&current=temperature_2m,weather_code,is_day' +
     '&daily=sunrise,sunset' +
     '&temperature_unit=fahrenheit' +
@@ -189,7 +236,10 @@ function sendWeather(lat, lon) {
         if (!isDay && sunsetK < 0) { sunsetK = k; dict['SUNSET_STR'] = sunsetBefore(j, t); }
       }
       prevDay = isDay;
-      dict['ICON_' + k] = (isDay ? 0 : 10) + wxState(j.hourly.weather_code[idx]);
+      var H = j.hourly;
+      var cell = classify(H.weather_code[idx], H.precipitation_probability[idx],
+                          H.cloud_cover[idx], H.temperature_2m[idx], H.cape[idx], H.snowfall[idx]);
+      dict['ICON_' + k] = packIcon(isDay, cell);
       dict['TEMP_' + k] = Math.round(j.hourly.temperature_2m[idx]);
     }
     dict['START_K'] = startK;
@@ -198,7 +248,13 @@ function sendWeather(lat, lon) {
 
     dict['MOON_PHASE'] = moonPhaseIndex(new Date());
 
-    dict['CUR_ICON'] = (j.current.is_day ? 0 : 10) + wxState(j.current.weather_code);
+    // Current block lacks POP/CAPE/snow, so classify "now" from the current
+    // hour's hourly values, with the live current temp/weather_code/day flag.
+    var curIdx = (i0 > 0) ? i0 - 1 : 0;
+    var curCell = classify(j.current.weather_code, j.hourly.precipitation_probability[curIdx],
+                           j.hourly.cloud_cover[curIdx], j.current.temperature_2m,
+                           j.hourly.cape[curIdx], j.hourly.snowfall[curIdx]);
+    dict['CUR_ICON'] = packIcon(j.current.is_day, curCell);
     dict['CUR_TEMP'] = Math.round(j.current.temperature_2m);
 
     Pebble.sendAppMessage(dict,
@@ -254,6 +310,7 @@ Pebble.addEventListener('appmessage', function (e) {
 
 Pebble.addEventListener('ready', function () {
   loadLocationConfig();
+  loadThresholds();        // classification cutoffs from the settings page
   syncSettingsToWatch();   // keep the watch's display options in step with the phone
   fetchWeather();
   setInterval(fetchWeather, 30 * 60 * 1000);  // belt-and-suspenders if JS stays alive

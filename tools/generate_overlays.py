@@ -155,54 +155,61 @@ def precip_cloud_mass(S):
     cloud_bottom = top_y + shift + h
     return canvas, cloud_bottom
 
-def build(state, S):
+def flake_sprite(diam):
+    # One branched-tip snowflake (white, dark outline) on a transparent square,
+    # supersampled then downscaled. The C side stamps this N times for snow.
+    SS = 4
+    P = diam * SS
+    im = Image.new("RGBA", (P, P), (0, 0, 0, 0))
+    d = ImageDraw.Draw(im)
+    cx = cy = P / 2.0
+    R = P * 0.42
+    ow = max(3, int(R * 0.52)); iw = max(2, int(R * 0.30))
+    barbs = [(0.68, 0.34)]
+    def flake(w, col):
+        for k in range(6):
+            a = math.radians(k * 60); ca, sa = math.cos(a), math.sin(a)
+            d.line([(cx, cy), (cx + ca * R, cy + sa * R)], fill=col, width=w)
+            for frac, blen in barbs:
+                bx, by = cx + ca * R * frac, cy + sa * R * frac
+                for s in (1, -1):
+                    ba = a + s * math.radians(45)
+                    d.line([(bx, by), (bx + math.cos(ba) * R * blen, by + math.sin(ba) * R * blen)],
+                           fill=col, width=w)
+    flake(ow, (0, 0, 0, 255))
+    flake(iw, (235, 245, 255, 255))
+    return im.resize((diam, diam), Image.LANCZOS)
+
+def build_cloud(state, S):
+    # Only the CLOUD body now: rays/flakes/bolts are drawn on-watch in C so the
+    # mark count can vary with precipitation probability. "precip" is the bare
+    # dark two-cloud mass used for rain/snow/storm alike.
     canvas = Image.new("RGBA", (S, S), (0, 0, 0, 0))
     if state == "partly":
         w = int(S * 0.62)
         c = plain.resize((w, int(w * 0.74)), Image.LANCZOS)   # small WHITE cloud
-        canvas.alpha_composite(c, ((S - c.width) // 2, S - c.height - 1))  # bottom-center
+        canvas.alpha_composite(c, ((S - c.width) // 2, S - c.height - 1))
     elif state == "overcast":
-        # dry overcast: big white cloud flush at the bottom (unchanged)
         w = int(S * 0.96)
         c = light_cl.resize((w, int(w * 0.74)), Image.LANCZOS)
-        cy = S - c.height - 1
-        canvas.alpha_composite(c, ((S - w) // 2, cy))
-    else:
-        # precip states: a big two-cloud dark mass kept high, with precip
-        # falling below it. The celestial is clipped to a crown on the C side.
-        cloud, cloud_bottom = precip_cloud_mass(S)
+        canvas.alpha_composite(c, ((S - w) // 2, S - c.height - 1))
+    elif state == "precip":
+        cloud, _ = precip_cloud_mass(S)
         canvas.alpha_composite(cloud, (0, 0))
-        band_h = S - cloud_bottom                 # space below the cloud mass
-        if state == "rain":
-            pw = int(S * 0.78)                    # wider spread of streaks
-            ph = int(band_h + S * 0.24)           # longer streaks, tuck behind lip
-            m = diagonal_rain(pw, ph)
-            my = cloud_bottom - int(S * 0.10)
-        elif state == "snow":
-            pw = int(S * 0.84)                    # bigger flakes
-            ph = int(band_h + S * 0.30)
-            m = draw_snow(pw, ph)
-            my = cloud_bottom - int(S * 0.08)
-        else:  # storm
-            pw = int(S * 0.66)                    # two bolts side by side
-            ph = int(band_h + S * 0.34)
-            m = draw_bolt(pw, ph)
-            my = cloud_bottom - int(S * 0.06)
-        my = min(my, S - m.height)                 # never overflow canvas
-        canvas.alpha_composite(m, ((S - pw) // 2, my))
     return canvas
 
-STATES = ["partly", "overcast", "rain", "snow", "storm"]
-for st in STATES:
-    build(st, 42).save(os.path.join(OUT, f"ov_{st}_ring.png"))
-    build(st, 56).save(os.path.join(OUT, f"ov_{st}_ctr.png"))
-    build(st, 46).save(os.path.join(OUT, f"ov_{st}_xl.png"))   # off-mode bigger ring
+# ring = 42 (temps mode), xl = 46 (off-mode bigger ring), ctr = 56 (center)
+SIZES = {"ring": 42, "xl": 46, "ctr": 56}
+for name, S in SIZES.items():
+    for st in ["partly", "overcast", "precip"]:
+        build_cloud(st, S).save(os.path.join(OUT, f"ov_{st}_{name}.png"))
+    flake_sprite(max(10, round(S * 0.30))).save(os.path.join(OUT, f"flake_{name}.png"))
 
 # ---- composited preview (rows: day, night; cols: clear..storm) ----
 sun  = Image.open(f"{OUT}/wx_clear_day_lg.png").convert("RGBA")          # full sun
 moon = Image.open(f"{OUT}/moon_ctr_05.png").convert("RGBA")             # single moon size
 S = 56
-cols = ["clear"] + STATES
+cols = ["clear", "partly", "overcast", "precip"]
 Z = 3
 
 def crown(cel):
@@ -220,8 +227,8 @@ def crown(cel):
                 p[x, y] = (r, g, b, 0)
     return out
 
-PRECIP = {"rain", "snow", "storm"}
-sheet = Image.new("RGBA", (S * Z * 6 + 7 * 6, S * Z * 2 + 3 * 6), (0, 0, 0, 255))
+PRECIP = {"precip"}
+sheet = Image.new("RGBA", (S * Z * len(cols) + (len(cols) + 1) * 6, S * Z * 2 + 3 * 6), (0, 0, 0, 255))
 for r, night in enumerate([False, True]):
     for cidx, st in enumerate(cols):
         tile = Image.new("RGBA", (S, S), (0, 0, 0, 0))

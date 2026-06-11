@@ -1,7 +1,7 @@
 {
   "name": "hourcast",
   "author": "Max Kelly",
-  "version": "2.2.0",
+  "version": "3.1.0",
   "keywords": [
     "pebble-app"
   ],
@@ -62,7 +62,15 @@
       "MANUAL_LAT",
       "MANUAL_LON",
       "CURRENT_LOC",
-      "REQUEST_WEATHER"
+      "REQUEST_WEATHER",
+      "POP1",
+      "POP2",
+      "POP3",
+      "POP4",
+      "CLOUD_OVERCAST",
+      "CLOUD_CLEAR",
+      "SNOW_TEMP_F",
+      "STORM_CAPE"
     ],
     "resources": {
       "media": [
@@ -299,18 +307,13 @@
         },
         {
           "type": "bitmap",
-          "name": "OV_RAIN_RING",
-          "file": "icons/ov_rain_ring.png"
+          "name": "OV_PRECIP_RING",
+          "file": "icons/ov_precip_ring.png"
         },
         {
           "type": "bitmap",
-          "name": "OV_SNOW_RING",
-          "file": "icons/ov_snow_ring.png"
-        },
-        {
-          "type": "bitmap",
-          "name": "OV_STORM_RING",
-          "file": "icons/ov_storm_ring.png"
+          "name": "FLAKE_RING",
+          "file": "icons/flake_ring.png"
         },
         {
           "type": "bitmap",
@@ -324,18 +327,13 @@
         },
         {
           "type": "bitmap",
-          "name": "OV_RAIN_CTR",
-          "file": "icons/ov_rain_ctr.png"
+          "name": "OV_PRECIP_CTR",
+          "file": "icons/ov_precip_ctr.png"
         },
         {
           "type": "bitmap",
-          "name": "OV_SNOW_CTR",
-          "file": "icons/ov_snow_ctr.png"
-        },
-        {
-          "type": "bitmap",
-          "name": "OV_STORM_CTR",
-          "file": "icons/ov_storm_ctr.png"
+          "name": "FLAKE_CTR",
+          "file": "icons/flake_ctr.png"
         },
         {
           "type": "bitmap",
@@ -349,18 +347,13 @@
         },
         {
           "type": "bitmap",
-          "name": "OV_RAIN_XL",
-          "file": "icons/ov_rain_xl.png"
+          "name": "OV_PRECIP_XL",
+          "file": "icons/ov_precip_xl.png"
         },
         {
           "type": "bitmap",
-          "name": "OV_SNOW_XL",
-          "file": "icons/ov_snow_xl.png"
-        },
-        {
-          "type": "bitmap",
-          "name": "OV_STORM_XL",
-          "file": "icons/ov_storm_xl.png"
+          "name": "FLAKE_XL",
+          "file": "icons/flake_xl.png"
         }
       ]
     }

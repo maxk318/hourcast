@@ -20,6 +20,7 @@ typedef struct {
   bool     night;   // moon instead of sun
   WxCloud  cloud;   // none / small (partly) / large (overcast)
   WxPrecip precip;  // none / rain / snow / storm  (forces a large cloud)
+  uint8_t  count;   // precip intensity: number of rays/flakes/bolts (0..4)
 } WxCell;
 
 // per clock position k=0..11 (k=0 is the 12 o'clock spot, k*30 degrees)
@@ -67,7 +68,8 @@ static GPoint point_on_rect(GPoint center, int hw, int hh, int32_t angle) {
 // ---- weather icons (Option A): a celestial layer + an optional cloud overlay
 // composited at runtime, so the moon phase shows everywhere from one source.
 static GBitmap *s_sun_ring, *s_sun_ctr;          // full sun (clear day + behind day clouds)
-static GBitmap *s_ov_ring[5], *s_ov_ctr[5];      // overlays: 0 partly,1 overcast,2 rain,3 snow,4 storm
+static GBitmap *s_ov_ring[3], *s_ov_ctr[3];      // cloud overlays: 0 partly,1 overcast,2 precip(bare dark)
+static GBitmap *s_flake_ring, *s_flake_ctr;      // snowflake sprite, stamped per precip count
 static GBitmap *s_moon_ring, *s_moon_ctr;        // phase moon (one size), current phase
 static int      s_loaded_phase = -1;
 
@@ -109,21 +111,18 @@ static void load_weather_icons(void) {
   if (big) {
     s_ov_ring[0] = gbitmap_create_with_resource(RESOURCE_ID_OV_PARTLY_XL);
     s_ov_ring[1] = gbitmap_create_with_resource(RESOURCE_ID_OV_OVERCAST_XL);
-    s_ov_ring[2] = gbitmap_create_with_resource(RESOURCE_ID_OV_RAIN_XL);
-    s_ov_ring[3] = gbitmap_create_with_resource(RESOURCE_ID_OV_SNOW_XL);
-    s_ov_ring[4] = gbitmap_create_with_resource(RESOURCE_ID_OV_STORM_XL);
+    s_ov_ring[2] = gbitmap_create_with_resource(RESOURCE_ID_OV_PRECIP_XL);
+    s_flake_ring = gbitmap_create_with_resource(RESOURCE_ID_FLAKE_XL);
   } else {
     s_ov_ring[0] = gbitmap_create_with_resource(RESOURCE_ID_OV_PARTLY_RING);
     s_ov_ring[1] = gbitmap_create_with_resource(RESOURCE_ID_OV_OVERCAST_RING);
-    s_ov_ring[2] = gbitmap_create_with_resource(RESOURCE_ID_OV_RAIN_RING);
-    s_ov_ring[3] = gbitmap_create_with_resource(RESOURCE_ID_OV_SNOW_RING);
-    s_ov_ring[4] = gbitmap_create_with_resource(RESOURCE_ID_OV_STORM_RING);
+    s_ov_ring[2] = gbitmap_create_with_resource(RESOURCE_ID_OV_PRECIP_RING);
+    s_flake_ring = gbitmap_create_with_resource(RESOURCE_ID_FLAKE_RING);
   }
   s_ov_ctr[0] = gbitmap_create_with_resource(RESOURCE_ID_OV_PARTLY_CTR);
   s_ov_ctr[1] = gbitmap_create_with_resource(RESOURCE_ID_OV_OVERCAST_CTR);
-  s_ov_ctr[2] = gbitmap_create_with_resource(RESOURCE_ID_OV_RAIN_CTR);
-  s_ov_ctr[3] = gbitmap_create_with_resource(RESOURCE_ID_OV_SNOW_CTR);
-  s_ov_ctr[4] = gbitmap_create_with_resource(RESOURCE_ID_OV_STORM_CTR);
+  s_ov_ctr[2] = gbitmap_create_with_resource(RESOURCE_ID_OV_PRECIP_CTR);
+  s_flake_ctr = gbitmap_create_with_resource(RESOURCE_ID_FLAKE_CTR);
   load_moon_phase(s_moon_phase);
 }
 
@@ -133,10 +132,12 @@ static void unload_weather_icons(void) {
   // first — a dangling (freed-but-non-NULL) pointer would double-free + crash.
   if (s_sun_ring) { gbitmap_destroy(s_sun_ring); s_sun_ring = NULL; }
   if (s_sun_ctr)  { gbitmap_destroy(s_sun_ctr);  s_sun_ctr = NULL; }
-  for (int i = 0; i < 5; i++) {
+  for (int i = 0; i < 3; i++) {
     if (s_ov_ring[i]) { gbitmap_destroy(s_ov_ring[i]); s_ov_ring[i] = NULL; }
     if (s_ov_ctr[i])  { gbitmap_destroy(s_ov_ctr[i]);  s_ov_ctr[i] = NULL; }
   }
+  if (s_flake_ring) { gbitmap_destroy(s_flake_ring); s_flake_ring = NULL; }
+  if (s_flake_ctr)  { gbitmap_destroy(s_flake_ctr);  s_flake_ctr = NULL; }
   if (s_moon_ring) { gbitmap_destroy(s_moon_ring); s_moon_ring = NULL; }
   if (s_moon_ctr)  { gbitmap_destroy(s_moon_ctr);  s_moon_ctr = NULL; }
 }
@@ -176,19 +177,79 @@ static void blit_icon_crown(GContext *ctx, GPoint c, GBitmap *bmp) {
   gbitmap_destroy(sub);
 }
 
-// Weather glyph = celestial (full sun / full moon / small moon) + optional
-// cloud overlay, composited at c. `center` picks the larger center-size assets.
+// Blit a bitmap centered at an arbitrary screen point (not the icon center).
+static void blit_at(GContext *ctx, GBitmap *bmp, int cx, int cy) {
+  if (!bmp) return;
+  GRect b = gbitmap_get_bounds(bmp);
+  graphics_context_set_compositing_mode(ctx, GCompOpSet);
+  graphics_draw_bitmap_in_rect(ctx, bmp,
+      GRect(cx - b.size.w / 2, cy - b.size.h / 2, b.size.w, b.size.h));
+}
+
+// n precip marks in the band below the cloud mass. Rays/bolts are drawn with a
+// black outline (like the hands); snow stamps the flake sprite. `S` = icon size.
+static void draw_precip_marks(GContext *ctx, GPoint c, int S, int st, int n, bool center) {
+  int left = c.x - S / 2, top = c.y - S / 2;
+  int cloud_bottom = top + S * 80 / 100;   // cloud mass ends ~0.80 down the icon
+  int bottom = top + S - 1;
+  int lo = (st == 4) ? 14 : 24, hi = (st == 4) ? 86 : 76;   // snow spreads wider
+  for (int i = 0; i < n; i++) {
+    int xpct = (n == 1) ? 50 : lo + (hi - lo) * i / (n - 1);
+    int x = left + S * xpct / 100;
+    if (st == 4) {                                       // snow: stamp a flake
+      int cy = cloud_bottom + (bottom - cloud_bottom) * 45 / 100;
+      blit_at(ctx, center ? s_flake_ctr : s_flake_ring, x, cy);
+    } else if (st == 3) {                                // rain: blue diagonal ray
+      int run = S * 9 / 100;
+      int y0 = cloud_bottom - S * 10 / 100, y1 = bottom - S * 2 / 100;
+      int iw = S * 60 / 1000; if (iw < 2) iw = 2;   // blue core
+      int ow = iw + 2;                               // black edge: 1px each side, all sizes
+      graphics_context_set_stroke_color(ctx, GColorBlack);
+      graphics_context_set_stroke_width(ctx, (uint8_t)ow);
+      graphics_draw_line(ctx, GPoint(x, y0), GPoint(x - run, y1));
+      graphics_context_set_stroke_color(ctx, GColorPictonBlue);
+      graphics_context_set_stroke_width(ctx, (uint8_t)iw);
+      graphics_draw_line(ctx, GPoint(x, y0), GPoint(x - run, y1));
+    } else {                                             // storm: yellow bolt
+      int bw = S * 30 / 100, bh = S * 42 / 100;
+      int bx = x - bw / 2, by = cloud_bottom - S * 12 / 100;
+      static const int nx[7] = {520, 180, 460, 300, 840, 540, 700};   // *1000
+      static const int ny[7] = {0, 560, 560, 1000, 400, 400, 0};
+      GPoint pts[7];
+      for (int j = 0; j < 7; j++) pts[j] = GPoint(nx[j] * bw / 1000, ny[j] * bh / 1000);
+      GPathInfo info = { .num_points = 7, .points = pts };
+      GPath *gp = gpath_create(&info);
+      gpath_move_to(gp, GPoint(bx, by));
+      graphics_context_set_fill_color(ctx, GColorYellow);
+      gpath_draw_filled(ctx, gp);
+      graphics_context_set_stroke_color(ctx, GColorBlack);
+      graphics_context_set_stroke_width(ctx, 1);
+      gpath_draw_outline(ctx, gp);
+      gpath_destroy(gp);
+    }
+  }
+}
+
+// Weather glyph = celestial (sun/moon, clipped to a crown for precip) + a cloud
+// overlay, plus C-drawn precip marks whose count tracks the precip probability.
 static void draw_wx(GContext *ctx, GPoint c, WxCell w, bool center) {
   int st = wx_state(w);   // 0 clear,1 partly,2 overcast,3 rain,4 snow,5 storm
-  GBitmap *cel;
-  if (w.night) cel = center ? s_moon_ctr : s_moon_ring;   // one moon size, clear or cloudy
-  else         cel = center ? s_sun_ctr : s_sun_ring;     // day: full sun
-  // For precip (rain/snow/storm) the big cloud mass sits high and the celestial
-  // is clipped to a crown; for clear/partly/overcast it's drawn in full.
-  if (st >= 3) blit_icon_crown(ctx, c, cel);
-  else         blit_icon(ctx, c, cel);
-  if (st != 0)
-    blit_icon(ctx, c, center ? s_ov_ctr[st - 1] : s_ov_ring[st - 1]);
+  GBitmap *cel = w.night ? (center ? s_moon_ctr : s_moon_ring)
+                         : (center ? s_sun_ctr  : s_sun_ring);
+  bool precip = (st >= 3);
+  if (precip) blit_icon_crown(ctx, c, cel);
+  else        blit_icon(ctx, c, cel);
+
+  GBitmap *ov = NULL;
+  if (st == 1)      ov = center ? s_ov_ctr[0] : s_ov_ring[0];   // partly
+  else if (st == 2) ov = center ? s_ov_ctr[1] : s_ov_ring[1];   // overcast
+  else if (precip)  ov = center ? s_ov_ctr[2] : s_ov_ring[2];   // bare dark cloud
+  if (ov) blit_icon(ctx, c, ov);
+
+  if (precip && w.count > 0 && ov) {
+    GRect b = gbitmap_get_bounds(ov);
+    draw_precip_marks(ctx, c, b.size.w, st, w.count, center);
+  }
 }
 
 // Draw text with a 1px black outline so it stays legible over the hands, the
@@ -484,21 +545,27 @@ static void prv_window_unload(Window *window) {
 }
 
 // ---- weather messages (from the companion JS) ----
+// Icon int from JS: night*100 + state*10 + count (state 0..5, count 0..4).
 static WxCell cell_from_code(int code) {
   WxCell w;
-  w.night  = (code >= 10);
-  int st   = code % 10;
+  w.night  = (code >= 100);
+  code    %= 100;
+  int st   = code / 10;
+  w.count  = code % 10;
   w.cloud  = (st == 0) ? CLOUD_NONE : (st == 1) ? CLOUD_SMALL : CLOUD_LARGE;
   w.precip = (st == 3) ? PRECIP_RAIN : (st == 4) ? PRECIP_SNOW :
              (st == 5) ? PRECIP_STORM : PRECIP_NONE;
+  if (w.precip == PRECIP_NONE) w.count = 0;
   return w;
 }
 
-static uint8_t cell_to_code(WxCell w) { return (w.night ? 10 : 0) + wx_state(w); }
+static uint8_t cell_to_code(WxCell w) {
+  return (w.night ? 100 : 0) + wx_state(w) * 10 + w.count;
+}
 
 // Persist the last weather so a relaunch shows it instantly (no placeholder flash).
 #define PERSIST_WX  1
-#define PERSIST_VER 2
+#define PERSIST_VER 3   // bumped: icon encoding now night*100 + state*10 + count
 typedef struct __attribute__((__packed__)) {
   uint8_t  ver;
   uint8_t  icon[12];
