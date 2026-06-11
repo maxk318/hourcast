@@ -56,8 +56,17 @@ function syncSettingsToWatch() {
   var s = {};
   try { s = JSON.parse(localStorage.getItem('clay-settings')) || {}; } catch (e) { /* */ }
   var mode = s.hasOwnProperty('DISPLAY_MODE') ? (parseInt(s.DISPLAY_MODE, 10) || 0) : 0;
-  var showTide = s.hasOwnProperty('SHOW_TIDE') ? (!!s.SHOW_TIDE) : false;
-  Pebble.sendAppMessage({ 'DISPLAY_MODE': mode, 'SHOW_TIDE': (showTide ? 1 : 0) },
+  var showTide    = s.hasOwnProperty('SHOW_TIDE')    ? (!!s.SHOW_TIDE)    : false;
+  var showDate    = s.hasOwnProperty('SHOW_DATE')    ? (!!s.SHOW_DATE)    : true;
+  var showBattery      = s.hasOwnProperty('SHOW_BATTERY')      ? (!!s.SHOW_BATTERY)                        : true;
+  var batteryThreshold = s.hasOwnProperty('BATTERY_THRESHOLD') ? (parseInt(s.BATTERY_THRESHOLD, 10) || 0) : 15;
+  Pebble.sendAppMessage({
+    'DISPLAY_MODE':       mode,
+    'SHOW_TIDE':          showTide         ? 1 : 0,
+    'SHOW_DATE':          showDate         ? 1 : 0,
+    'SHOW_BATTERY':       showBattery      ? 1 : 0,
+    'BATTERY_THRESHOLD':  batteryThreshold,
+  },
     function () { console.log('HourCast: settings synced'); },
     function (err) { console.log('HourCast: settings sync failed ' + JSON.stringify(err)); });
 }
@@ -121,9 +130,10 @@ Pebble.addEventListener('webviewclosed', function (e) {
   }
 
   // booleans need to be 0/1 for the watch
-  if (dict.hasOwnProperty(messageKeys.SHOW_TIDE)) {
-    dict[messageKeys.SHOW_TIDE] = dict[messageKeys.SHOW_TIDE] ? 1 : 0;
-  }
+  if (dict.hasOwnProperty(messageKeys.SHOW_TIDE))         dict[messageKeys.SHOW_TIDE]         = dict[messageKeys.SHOW_TIDE]         ? 1 : 0;
+  if (dict.hasOwnProperty(messageKeys.SHOW_DATE))         dict[messageKeys.SHOW_DATE]         = dict[messageKeys.SHOW_DATE]         ? 1 : 0;
+  if (dict.hasOwnProperty(messageKeys.SHOW_BATTERY))      dict[messageKeys.SHOW_BATTERY]      = dict[messageKeys.SHOW_BATTERY]      ? 1 : 0;
+  if (dict.hasOwnProperty(messageKeys.BATTERY_THRESHOLD)) dict[messageKeys.BATTERY_THRESHOLD] = parseInt(dict[messageKeys.BATTERY_THRESHOLD], 10) || 0;
 
   Pebble.sendAppMessage(dict,
     function () { console.log('HourCast: settings sent'); },

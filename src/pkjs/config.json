@@ -13,15 +13,38 @@
         "options": [
           { "label": "Clock Numbers", "value": "0" },
           { "label": "Hashes", "value": "1" },
-          { "label": "Temperature", "value": "2" }
+          { "label": "Temperature", "value": "2" },
+          { "label": "None", "value": "3" }
         ]
       },
       {
         "type": "toggle",
         "messageKey": "SHOW_TIDE",
-        "label": "Show tide levels (if available)",
+        "label": "Show tide levels",
         "description": "Draws a blue tank behind each hour showing the tide level, when a tide station is available at your location.",
         "defaultValue": false
+      },
+      {
+        "type": "toggle",
+        "messageKey": "SHOW_DATE",
+        "label": "Show date",
+        "description": "Shows the day-of-month badge at the 5 o'clock position.",
+        "defaultValue": true
+      },
+      {
+        "type": "toggle",
+        "messageKey": "SHOW_BATTERY",
+        "label": "Show battery always",
+        "description": "Always show the battery percentage badge at the 7 o'clock position.",
+        "defaultValue": true
+      },
+      {
+        "type": "input",
+        "messageKey": "BATTERY_THRESHOLD",
+        "label": "Show battery when under this %",
+        "description": "Also show battery when charge drops below this level. Set to 0 to disable.",
+        "defaultValue": "15",
+        "attributes": { "type": "number", "min": "0", "max": "100", "step": "1" }
       }
     ]
   },

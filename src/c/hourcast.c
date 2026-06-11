@@ -38,7 +38,8 @@ static char   s_sunrise_str[8] = "", s_sunset_str[8] = "";
 // display mode: 0 = inner numerals (temp on each icon),
 //               1 = hash marks + bigger icons (temp on each icon),
 //               2 = temps on the inner ring (icons uncovered, spotted moons)
-enum { MODE_NUMERALS = 0, MODE_HASH = 1, MODE_TEMPS = 2 };
+//               3 = none: clean inner ring, bigger icons (like hash, no ticks)
+enum { MODE_NUMERALS = 0, MODE_HASH = 1, MODE_TEMPS = 2, MODE_NONE = 3 };
 static int    s_display_mode = MODE_NUMERALS;      // setting: default inner-ring style
 
 // Tide: a blue "tank" drawn behind each inner-ring slot, filled to that hour's
@@ -47,6 +48,9 @@ static int    s_display_mode = MODE_NUMERALS;      // setting: default inner-rin
 static uint8_t s_tide[12];
 static bool    s_tide_valid = false;   // phone has tide data (nearby station)
 static bool    s_show_tide = false;    // setting: draw the tide tanks
+static bool    s_show_date = true;     // setting: show date badge at 5 o'clock
+static bool    s_show_battery = true;  // setting: show battery badge always
+static int     s_battery_threshold = 15; // setting: also show battery when under this %
 
 // ---- helpers ----
 static GPoint point_on_circle(GPoint center, int radius, int32_t angle) {
@@ -415,7 +419,7 @@ static void draw_hash_ticks(GContext *ctx, GPoint center, int hw, int hh) {
 // Minute hand stops just inside the icon ring (icons sit at ICON_EDGE_INSET 22
 // + half the 42px icon ≈ 43 from the edge), so it passes through the numerals
 // but short of the icons.
-#define HOUR_HAND_FRAC  44   // hour hand: fixed circular length (% of min half)
+#define HOUR_HAND_FRAC  50   // hour hand: fixed circular length (% of min half)
 #define MIN_EDGE_INSET  32   // minute hand: dynamic, reaching further toward the edge
 static void draw_hands(GContext *ctx, GPoint center, int half, int hw, int hh) {
   time_t now = time(NULL);
@@ -424,8 +428,8 @@ static void draw_hands(GContext *ctx, GPoint center, int half, int hw, int hh) {
   int32_t min_angle = TRIG_MAX_ANGLE * t->tm_min / 60;
   int32_t hour_angle = TRIG_MAX_ANGLE * ((t->tm_hour % 12) * 60 + t->tm_min) / (12 * 60);
 
-  // both hands share the BT color: light blue when phone connected, red when not
-  GColor hand_col = s_bt_connected ? GColorPictonBlue : GColorRed;
+  // white when tides on + connected, original blue otherwise, red when disconnected
+  GColor hand_col = !s_bt_connected ? GColorRed : (s_show_tide ? GColorWhite : GColorPictonBlue);
 
   GPoint hour_end = point_on_circle(center, half * HOUR_HAND_FRAC / 100, hour_angle);
   GPoint min_end  = point_on_rect(center, hw - MIN_EDGE_INSET, hh - MIN_EDGE_INSET, min_angle);
@@ -608,11 +612,16 @@ static void face_update_proc(Layer *layer, GContext *ctx) {
     draw_hour_numerals(ctx, center, hw, hh); // inner ring: hour numerals
   else if (s_display_mode == MODE_HASH)
     draw_hash_ticks(ctx, center, hw, hh);    // inner ring: major/minor hash marks
-  else
+  else if (s_display_mode == MODE_TEMPS)
     draw_temp_ring(ctx, center, hw, hh);     // inner ring: temperatures (12/3/6/9 bold)
+  // MODE_NONE: nothing drawn on the inner ring
   draw_center_weather(ctx, center);
-  draw_day_badge(ctx, center);
-  draw_battery_badge(ctx, center);
+  if (s_show_date)    draw_day_badge(ctx, center);
+  {
+    int pct = battery_state_service_peek().charge_percent;
+    if (s_show_battery || (s_battery_threshold > 0 && pct <= s_battery_threshold))
+      draw_battery_badge(ctx, center);
+  }
 }
 
 // Ask the phone companion for fresh weather. The companion JS is normally
@@ -720,9 +729,12 @@ static void save_weather(void) {
 static void load_weather(void) {
   if (persist_exists(2)) {                          // setting: display mode
     s_display_mode = persist_read_int(2);
-    if (s_display_mode < MODE_NUMERALS || s_display_mode > MODE_TEMPS) s_display_mode = MODE_NUMERALS;
+    if (s_display_mode < MODE_NUMERALS || s_display_mode > MODE_NONE) s_display_mode = MODE_NUMERALS;
   }
-  if (persist_exists(3)) s_show_tide = persist_read_bool(3);   // setting: show tide
+  if (persist_exists(3)) s_show_tide    = persist_read_bool(3);  // setting: show tide
+  if (persist_exists(4)) s_show_date    = persist_read_bool(4);  // setting: show date
+  if (persist_exists(5)) s_show_battery      = persist_read_bool(5);  // setting: show battery
+  if (persist_exists(6)) s_battery_threshold = persist_read_int(6);   // setting: battery threshold
   if (!persist_exists(PERSIST_WX)) return;       // first launch: blank until JS sends
   WxPersist p;
   if (persist_read_data(PERSIST_WX, &p, sizeof(p)) < (int)sizeof(p)) return;
@@ -774,7 +786,12 @@ static void inbox_received(DictionaryIterator *iter, void *context) {
             if (s_moon_phase < 0 || s_moon_phase > 9) s_moon_phase = 5;
             load_moon_phase(s_moon_phase); }
 
-  s_sunrise_k = -1; s_sunset_k = -1;
+  // Only reset sunrise/sunset when a new weather payload arrives (identified by
+  // START_K). Settings-only messages don't carry these keys and must not clobber them.
+  if (dict_find(iter, MESSAGE_KEY_START_K)) {
+    s_sunrise_k = -1; s_sunset_k = -1;
+    s_sunrise_str[0] = '\0'; s_sunset_str[0] = '\0';
+  }
   Tuple *srk = dict_find(iter, MESSAGE_KEY_SUNRISE_K);
   if (srk) s_sunrise_k = srk->value->int32;
   Tuple *ssk = dict_find(iter, MESSAGE_KEY_SUNSET_K);
@@ -787,7 +804,7 @@ static void inbox_received(DictionaryIterator *iter, void *context) {
   Tuple *dm = dict_find(iter, MESSAGE_KEY_DISPLAY_MODE);
   if (dm) {
     int want = dm->value->int32;
-    if (want < MODE_NUMERALS || want > MODE_TEMPS) want = MODE_NUMERALS;
+    if (want < MODE_NUMERALS || want > MODE_NONE) want = MODE_NUMERALS;
     if (want != s_display_mode) {        // icon/moon set depends on this -> reload
       s_display_mode = want;
       persist_write_int(2, s_display_mode);
@@ -800,7 +817,22 @@ static void inbox_received(DictionaryIterator *iter, void *context) {
   Tuple *st = dict_find(iter, MESSAGE_KEY_SHOW_TIDE);
   if (st) {
     s_show_tide = st->value->uint32 ? true : false;
-    persist_write_bool(3, s_show_tide);   // persist the setting
+    persist_write_bool(3, s_show_tide);
+  }
+  Tuple *sd = dict_find(iter, MESSAGE_KEY_SHOW_DATE);
+  if (sd) {
+    s_show_date = sd->value->uint32 ? true : false;
+    persist_write_bool(4, s_show_date);
+  }
+  Tuple *sb = dict_find(iter, MESSAGE_KEY_SHOW_BATTERY);
+  if (sb) {
+    s_show_battery = sb->value->uint32 ? true : false;
+    persist_write_bool(5, s_show_battery);
+  }
+  Tuple *bt = dict_find(iter, MESSAGE_KEY_BATTERY_THRESHOLD);
+  if (bt) {
+    s_battery_threshold = bt->value->int32;
+    persist_write_int(6, s_battery_threshold);
   }
 
   const uint32_t TIDE_KEYS[12] = {
