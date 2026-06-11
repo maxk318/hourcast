@@ -503,7 +503,7 @@ static int tide_fill_pct(int v) {
 static void draw_tide_cell(GContext *ctx, GPoint c, int S, int pct) {
   int x0 = c.x - S / 2, x1 = c.x + S / 2;
   int top = c.y - S / 2, bottom = c.y + S / 2;
-  int amp = S / 5; if (amp < 2) amp = 2;  // ~20% of cell — visible wave
+  int amp = S / 8; if (amp < 2) amp = 2;  // ~12% of cell — subtle wave
   int mean = bottom - (pct * S) / 100;   // mean water-surface y
   graphics_context_set_stroke_color(ctx, GColorBlueMoon);
   graphics_context_set_stroke_width(ctx, 1);
