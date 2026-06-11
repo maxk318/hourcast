@@ -56,13 +56,15 @@ function syncSettingsToWatch() {
   var s = {};
   try { s = JSON.parse(localStorage.getItem('clay-settings')) || {}; } catch (e) { /* */ }
   var mode = s.hasOwnProperty('DISPLAY_MODE') ? (parseInt(s.DISPLAY_MODE, 10) || 0) : 0;
-  var showTide    = s.hasOwnProperty('SHOW_TIDE')    ? (!!s.SHOW_TIDE)    : false;
+  var showTide      = s.hasOwnProperty('SHOW_TIDE')       ? (!!s.SHOW_TIDE)                        : false;
+  var useManualTide = s.hasOwnProperty('USE_MANUAL_TIDE') ? (!!s.USE_MANUAL_TIDE)                  : false;
   var showDate    = s.hasOwnProperty('SHOW_DATE')    ? (!!s.SHOW_DATE)    : true;
   var showBattery      = s.hasOwnProperty('SHOW_BATTERY')      ? (!!s.SHOW_BATTERY)                        : true;
   var batteryThreshold = s.hasOwnProperty('BATTERY_THRESHOLD') ? (parseInt(s.BATTERY_THRESHOLD, 10) || 0) : 15;
   Pebble.sendAppMessage({
     'DISPLAY_MODE':       mode,
     'SHOW_TIDE':          showTide         ? 1 : 0,
+    'USE_MANUAL_TIDE':    useManualTide    ? 1 : 0,
     'SHOW_DATE':          showDate         ? 1 : 0,
     'SHOW_BATTERY':       showBattery      ? 1 : 0,
     'BATTERY_THRESHOLD':  batteryThreshold,
@@ -134,6 +136,9 @@ Pebble.addEventListener('webviewclosed', function (e) {
   if (dict.hasOwnProperty(messageKeys.SHOW_DATE))         dict[messageKeys.SHOW_DATE]         = dict[messageKeys.SHOW_DATE]         ? 1 : 0;
   if (dict.hasOwnProperty(messageKeys.SHOW_BATTERY))      dict[messageKeys.SHOW_BATTERY]      = dict[messageKeys.SHOW_BATTERY]      ? 1 : 0;
   if (dict.hasOwnProperty(messageKeys.BATTERY_THRESHOLD)) dict[messageKeys.BATTERY_THRESHOLD] = parseInt(dict[messageKeys.BATTERY_THRESHOLD], 10) || 0;
+  if (dict.hasOwnProperty(messageKeys.USE_MANUAL_TIDE))   dict[messageKeys.USE_MANUAL_TIDE]   = dict[messageKeys.USE_MANUAL_TIDE]   ? 1 : 0;
+  // Station ID is phone-side only — don't forward to the watch
+  delete dict[messageKeys.MANUAL_TIDE_STATION_ID];
 
   Pebble.sendAppMessage(dict,
     function () { console.log('HourCast: settings sent'); },
@@ -220,24 +225,50 @@ function sendTide(lat, lon) {
   var today = noaaDay(now);
   var tomorrow = noaaDay(new Date(now.getTime() + 86400000));
 
-  // For now, use major US coastal stations. TODO: implement proper nearest-station lookup
   var stations = [
-    {id: '8638610', name: 'Sewells Point, VA', lat: 36.9428, lon: -76.3286},
-    {id: '8658163', name: 'Charleston, SC', lat: 32.7769, lon: -79.5268},
-    {id: '8722670', name: 'Miami, FL', lat: 25.7667, lon: -80.1628},
-    {id: '8727520', name: 'Key West, FL', lat: 24.5627, lon: -81.8093},
-    {id: '8454000', name: 'Galveston, TX', lat: 29.3186, lon: -94.7878},
-    {id: '8467150', name: 'Biloxi, MS', lat: 30.3869, lon: -88.8829},
-    {id: '8571892', name: 'New Orleans, LA', lat: 29.9186, lon: -90.2667},
-    {id: '8638386', name: 'Norfolk, VA', lat: 36.8457, lon: -76.2982}
+    // Northeast
+    {id: '8443970', name: 'Boston, MA',          lat: 42.3601, lon: -71.0516},
+    {id: '8518750', name: 'The Battery, NY',      lat: 40.6996, lon: -74.0142},
+    {id: '8531680', name: 'Sandy Hook, NJ',       lat: 40.4669, lon: -74.0097},
+    {id: '8534720', name: 'Atlantic City, NJ',    lat: 39.3558, lon: -74.4183},
+    // Mid-Atlantic / Southeast
+    {id: '8638610', name: 'Sewells Point, VA',    lat: 36.9468, lon: -76.3300},
+    {id: '8665530', name: 'Charleston, SC',       lat: 32.7817, lon: -79.9250},
+    {id: '8720218', name: 'Mayport, FL',          lat: 30.3983, lon: -81.4283},
+    {id: '8722670', name: 'Miami Beach, FL',      lat: 25.7617, lon: -80.1300},
+    {id: '8724580', name: 'Key West, FL',         lat: 24.5550, lon: -81.8067},
+    // Gulf Coast
+    {id: '8771450', name: 'Galveston, TX',        lat: 29.3100, lon: -94.7933},
+    {id: '8775870', name: 'Corpus Christi, TX',   lat: 27.6400, lon: -97.2167},
+    // West Coast
+    {id: '9410170', name: 'San Diego, CA',        lat: 32.7150, lon: -117.1733},
+    {id: '9410660', name: 'Los Angeles, CA',      lat: 33.7200, lon: -118.2717},
+    {id: '9413450', name: 'Monterey, CA',         lat: 36.6050, lon: -121.8883},
+    {id: '9414290', name: 'San Francisco, CA',    lat: 37.8067, lon: -122.4650},
+    {id: '9418767', name: 'Humboldt Bay, CA',     lat: 40.7683, lon: -124.2183},
+    {id: '9444900', name: 'Port Townsend, WA',    lat: 48.1133, lon: -122.7600},
+    {id: '9447130', name: 'Seattle, WA',          lat: 47.6017, lon: -122.3383},
+    // Hawaii / Alaska
+    {id: '1612340', name: 'Honolulu, HI',         lat: 21.3067, lon: -157.8650},
+    {id: '9452210', name: 'Juneau, AK',           lat: 58.2983, lon: -134.4117},
   ];
 
-  // Find nearest station
-  var best = null, bestDist = Infinity;
-  for (var s = 0; s < stations.length; s++) {
-    var dx = stations[s].lat - lat, dy = stations[s].lon - lon;
-    var dist = dx * dx + dy * dy;
-    if (dist < bestDist) { bestDist = dist; best = stations[s]; }
+  // Sort all stations by distance, store 5 nearest for the settings dropdown
+  stations.sort(function (a, b) {
+    var da = (a.lat - lat) * (a.lat - lat) + (a.lon - lon) * (a.lon - lon);
+    var db = (b.lat - lat) * (b.lat - lat) + (b.lon - lon) * (b.lon - lon);
+    return da - db;
+  });
+  localStorage.setItem('hcNearbyStations', JSON.stringify(stations.slice(0, 5)));
+
+  // Determine which station to use: manual override if set, else nearest
+  var best = stations[0];
+  var cs = {};
+  try { cs = JSON.parse(localStorage.getItem('clay-settings')) || {}; } catch (e) {}
+  if (cs.USE_MANUAL_TIDE && cs.MANUAL_TIDE_STATION_ID) {
+    for (var si = 0; si < stations.length; si++) {
+      if (stations[si].id === cs.MANUAL_TIDE_STATION_ID) { best = stations[si]; break; }
+    }
   }
 
   if (!best) {

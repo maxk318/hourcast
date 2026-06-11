@@ -72,6 +72,8 @@
       "STORM_CAPE",
       "SHOW_TIDE",
       "TIDE_STATION",
+      "USE_MANUAL_TIDE",
+      "MANUAL_TIDE_STATION_ID",
       "SHOW_DATE",
       "SHOW_BATTERY",
       "BATTERY_THRESHOLD",

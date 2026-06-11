@@ -29,9 +29,22 @@
         "type": "input",
         "messageKey": "TIDE_STATION",
         "id": "tideStation",
-        "label": "Tide station",
+        "label": "Nearest tide station",
         "defaultValue": "None nearby",
         "attributes": { "readonly": "readonly" }
+      },
+      {
+        "type": "toggle",
+        "messageKey": "USE_MANUAL_TIDE",
+        "label": "Choose station manually",
+        "description": "Override the automatic nearest-station selection.",
+        "defaultValue": false
+      },
+      {
+        "type": "tide-station-select",
+        "messageKey": "MANUAL_TIDE_STATION_ID",
+        "id": "manualTideStation",
+        "label": "Station"
       },
       {
         "type": "toggle",
