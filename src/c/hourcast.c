@@ -312,14 +312,13 @@ static void draw_icon_ring(GContext *ctx, GPoint center, int hw, int hh) {
     if (s_display_mode == MODE_TEMPS) continue;
 
     char buf[8];
-    GColor col = GColorWhite;
+    GColor col = (k == start_k) ? GColorGreen : GColorWhite;
     if (k == s_sunrise_k && s_sunrise_str[0]) {
       strncpy(buf, s_sunrise_str, sizeof(buf) - 1); buf[sizeof(buf) - 1] = '\0';
     } else if (k == s_sunset_k && s_sunset_str[0]) {
       strncpy(buf, s_sunset_str, sizeof(buf) - 1); buf[sizeof(buf) - 1] = '\0';
     } else {
       snprintf(buf, sizeof(buf), "%d", s_wx_temp[k]);
-      if (k == start_k) col = GColorGreen;
     }
     draw_badge_circle(ctx, iconp, buf, col);
   }
@@ -366,14 +365,13 @@ static void draw_temp_ring(GContext *ctx, GPoint center, int hw, int hh) {
     GPoint p = GPoint(center.x + dxk * temp_dist / TRIG_MAX_RATIO,
                       center.y + dyk * temp_dist / TRIG_MAX_RATIO);
     char buf[8];
-    GColor col = GColorWhite;
+    GColor col = (k == start_k) ? GColorGreen : GColorWhite;
     if (k == s_sunrise_k && s_sunrise_str[0]) {
       strncpy(buf, s_sunrise_str, sizeof(buf) - 1); buf[sizeof(buf) - 1] = '\0';
     } else if (k == s_sunset_k && s_sunset_str[0]) {
       strncpy(buf, s_sunset_str, sizeof(buf) - 1); buf[sizeof(buf) - 1] = '\0';
     } else {
       snprintf(buf, sizeof(buf), "%d", s_wx_temp[k]);
-      if (k == start_k) col = GColorGreen;
     }
     GFont font = (k % 3 == 0) ? bold : reg;   // 12/3/6/9 bold
     GSize sz = graphics_text_layout_get_content_size(
