@@ -41,10 +41,33 @@
         "defaultValue": false
       },
       {
-        "type": "tide-station-select",
+        "type": "select",
         "messageKey": "MANUAL_TIDE_STATION_ID",
         "id": "manualTideStation",
-        "label": "Station"
+        "label": "Station",
+        "defaultValue": "8443970",
+        "options": [
+          {"label": "Boston, MA",          "value": "8443970"},
+          {"label": "The Battery, NY",      "value": "8518750"},
+          {"label": "Sandy Hook, NJ",       "value": "8531680"},
+          {"label": "Atlantic City, NJ",    "value": "8534720"},
+          {"label": "Sewells Point, VA",    "value": "8638610"},
+          {"label": "Charleston, SC",       "value": "8665530"},
+          {"label": "Mayport, FL",          "value": "8720218"},
+          {"label": "Miami Beach, FL",      "value": "8722670"},
+          {"label": "Key West, FL",         "value": "8724580"},
+          {"label": "Galveston, TX",        "value": "8771450"},
+          {"label": "Corpus Christi, TX",   "value": "8775870"},
+          {"label": "San Diego, CA",        "value": "9410170"},
+          {"label": "Los Angeles, CA",      "value": "9410660"},
+          {"label": "Monterey, CA",         "value": "9413450"},
+          {"label": "San Francisco, CA",    "value": "9414290"},
+          {"label": "Humboldt Bay, CA",     "value": "9418767"},
+          {"label": "Port Townsend, WA",    "value": "9444900"},
+          {"label": "Seattle, WA",          "value": "9447130"},
+          {"label": "Honolulu, HI",         "value": "1612340"},
+          {"label": "Juneau, AK",           "value": "9452210"}
+        ]
       },
       {
         "type": "toggle",
