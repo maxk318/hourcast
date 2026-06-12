@@ -35,7 +35,8 @@ module.exports = function (minified) {
       var nearby = JSON.parse(localStorage.getItem('hcNearbyStations')) || [];
       if (nearby.length) {
         var stationItem = clayConfig.getItemByMessageKey('MANUAL_TIDE_STATION_ID');
-        var selectEl = stationItem.$element[0].querySelector('select.component-item');
+        // Use the component's id attribute to find the select in the page DOM
+        var selectEl = document.querySelector('#manualTideStation select');
         if (selectEl) {
           var savedVal = stationItem.setting;
           selectEl.innerHTML = '';
@@ -45,7 +46,6 @@ module.exports = function (minified) {
             opt.textContent = i === 0 ? s.name + ' (nearest)' : s.name;
             selectEl.appendChild(opt);
           });
-          // Restore saved selection if it's in the new list, else use nearest
           selectEl.value = savedVal || nearby[0].id;
         }
       }
