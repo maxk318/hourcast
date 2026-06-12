@@ -204,11 +204,14 @@ static void draw_precip_marks(GContext *ctx, GPoint c, int S, int st, int n, boo
   int left = c.x - S / 2, top = c.y - S / 2;
   int cloud_bottom = top + S * 80 / 100;   // cloud mass ends ~0.80 down the icon
   int bottom = top + S - 1;
-  int lo = (st == 4) ? 14 : 24, hi = (st == 4) ? 86 : 76;   // snow spreads wider
-  // Always use the 4-mark grid; 1/2/3 marks occupy positions 2-4, all 4 use 1-4.
-  int start = (n == 4) ? 0 : 1;
-  for (int i = start; i < start + n; i++) {
-    int xpct = lo + (hi - lo) * i / 3;
+  static const int8_t MARK_XPCT[4][4] = {
+    {60,  0,  0,  0},
+    {35, 65,  0,  0},
+    {30, 50, 70,  0},
+    {26, 42, 57, 74},
+  };
+  for (int i = 0; i < n; i++) {
+    int xpct = MARK_XPCT[n - 1][i];
     int x = left + S * xpct / 100;
     if (st == 4) {                                       // snow: stamp a flake
       int cy = cloud_bottom + (bottom - cloud_bottom) * 45 / 100;
