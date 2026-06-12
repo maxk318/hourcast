@@ -634,8 +634,9 @@ static void request_weather(void) {
 }
 
 static void tick_handler(struct tm *tick_time, TimeUnits units_changed) {
-  // refresh the rolling weather at :05 and :35 each hour
-  if (tick_time->tm_min == 5 || tick_time->tm_min == 35) request_weather();
+  // refresh the rolling weather at :01, :16, :31, :46
+  int m = tick_time->tm_min;
+  if (m == 1 || m == 16 || m == 31 || m == 46) request_weather();
   if (s_face_layer) layer_mark_dirty(s_face_layer);
 }
 

@@ -470,5 +470,5 @@ Pebble.addEventListener('ready', function () {
   loadThresholds();        // classification cutoffs from the settings page
   syncSettingsToWatch();   // keep the watch's display options in step with the phone
   fetchWeather();
-  setInterval(fetchWeather, 30 * 60 * 1000);  // belt-and-suspenders if JS stays alive
+  setInterval(fetchWeather, 15 * 60 * 1000);  // belt-and-suspenders if JS stays alive
 });
