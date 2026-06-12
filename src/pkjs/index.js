@@ -139,7 +139,6 @@ Pebble.addEventListener('webviewclosed', function (e) {
   if (dict.hasOwnProperty(messageKeys.USE_MANUAL_TIDE))   dict[messageKeys.USE_MANUAL_TIDE]   = dict[messageKeys.USE_MANUAL_TIDE]   ? 1 : 0;
   // Phone-side only — don't forward to the watch
   delete dict[messageKeys.MANUAL_TIDE_STATION_ID];
-  delete dict[messageKeys.NEARBY_STATIONS];
 
   Pebble.sendAppMessage(dict,
     function () { console.log('HourCast: settings sent'); },
@@ -243,20 +242,6 @@ var TIDE_STATIONS = [
   {id: '9452210', name: 'Juneau, AK',           lat: 58.2983, lon: -134.4117},
 ];
 
-// Sort stations by distance and store the 5 nearest in clay-settings under
-// NEARBY_STATIONS. Clay serializes clay-settings into the config page URL, so
-// this key is readable from custom-clay.js in the webview (unlike plain localStorage,
-// which is a separate context the webview cannot access).
-function cacheNearbyStations(lat, lon) {
-  var sorted = TIDE_STATIONS.slice().sort(function (a, b) {
-    var da = (a.lat - lat) * (a.lat - lat) + (a.lon - lon) * (a.lon - lon);
-    var db = (b.lat - lat) * (b.lat - lat) + (b.lon - lon) * (b.lon - lon);
-    return da - db;
-  });
-  setClaySetting('NEARBY_STATIONS', JSON.stringify(sorted.slice(0, 5)));
-  return sorted;
-}
-
 function sendTide(lat, lon) {
   // Fetch predicted water levels from NOAA for the nearest tide station.
   // Use yyyyMMdd dates (no time, no spaces) to avoid URL encoding issues.
@@ -268,8 +253,11 @@ function sendTide(lat, lon) {
   var today = noaaDay(now);
   var tomorrow = noaaDay(new Date(now.getTime() + 86400000));
 
-  // Sort and cache nearest stations (also updates the settings dropdown list)
-  var stations = cacheNearbyStations(lat, lon);
+  var stations = TIDE_STATIONS.slice().sort(function (a, b) {
+    var da = (a.lat - lat) * (a.lat - lat) + (a.lon - lon) * (a.lon - lon);
+    var db = (b.lat - lat) * (b.lat - lat) + (b.lon - lon) * (b.lon - lon);
+    return da - db;
+  });
 
   var nearest = stations[0];
   if (!nearest) { console.log('HourCast: no tide stations available'); return; }
@@ -450,7 +438,6 @@ function fetchWeather() {
     var lat = parseFloat(manualLat), lon = parseFloat(manualLon);
     if (!isNaN(lat) && !isNaN(lon)) {
       updateCurrentLocation(lat, lon, true);
-      cacheNearbyStations(lat, lon);
       sendWeather(lat.toFixed(4), lon.toFixed(4));
       return;
     }
@@ -459,13 +446,11 @@ function fetchWeather() {
   navigator.geolocation.getCurrentPosition(
     function (pos) {
       updateCurrentLocation(pos.coords.latitude, pos.coords.longitude, false);
-      cacheNearbyStations(pos.coords.latitude, pos.coords.longitude);
       sendWeather(pos.coords.latitude.toFixed(4), pos.coords.longitude.toFixed(4));
     },
     function (err) {
       console.log('HourCast: geolocation failed (' + err.message + '); using fallback');
       updateCurrentLocation(LAT_FALLBACK, LON_FALLBACK, false);
-      cacheNearbyStations(LAT_FALLBACK, LON_FALLBACK);
       sendWeather(LAT_FALLBACK, LON_FALLBACK);
     },
     { timeout: 15000, maximumAge: 60000 });

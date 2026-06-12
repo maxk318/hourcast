@@ -41,13 +41,6 @@
         "defaultValue": false
       },
       {
-        "type": "input",
-        "messageKey": "NEARBY_STATIONS",
-        "label": "Nearby stations (internal)",
-        "defaultValue": "[]",
-        "attributes": { "type": "hidden" }
-      },
-      {
         "type": "select",
         "messageKey": "MANUAL_TIDE_STATION_ID",
         "id": "manualTideStation",
