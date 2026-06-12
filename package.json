@@ -74,6 +74,7 @@
       "TIDE_STATION",
       "USE_MANUAL_TIDE",
       "MANUAL_TIDE_STATION_ID",
+      "NEARBY_STATIONS",
       "SHOW_DATE",
       "SHOW_BATTERY",
       "BATTERY_THRESHOLD",

@@ -40,10 +40,9 @@ module.exports = function (minified) {
       var nearby = JSON.parse(cs.NEARBY_STATIONS || '[]');
       if (nearby.length) {
         var stationItem = clayConfig.getItemByMessageKey('MANUAL_TIDE_STATION_ID');
-        var $sel = minified('select', stationItem.$element);
-        if ($sel.length) {
+        var selectEl = stationItem.$element[0] ? stationItem.$element[0].querySelector('select') : null;
+        if (selectEl) {
           var savedVal = stationItem.setting;
-          var selectEl = $sel[0];
           selectEl.innerHTML = '';
           nearby.forEach(function (s, i) {
             var opt = document.createElement('option');

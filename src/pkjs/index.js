@@ -137,8 +137,9 @@ Pebble.addEventListener('webviewclosed', function (e) {
   if (dict.hasOwnProperty(messageKeys.SHOW_BATTERY))      dict[messageKeys.SHOW_BATTERY]      = dict[messageKeys.SHOW_BATTERY]      ? 1 : 0;
   if (dict.hasOwnProperty(messageKeys.BATTERY_THRESHOLD)) dict[messageKeys.BATTERY_THRESHOLD] = parseInt(dict[messageKeys.BATTERY_THRESHOLD], 10) || 0;
   if (dict.hasOwnProperty(messageKeys.USE_MANUAL_TIDE))   dict[messageKeys.USE_MANUAL_TIDE]   = dict[messageKeys.USE_MANUAL_TIDE]   ? 1 : 0;
-  // Station ID is phone-side only — don't forward to the watch
+  // Phone-side only — don't forward to the watch
   delete dict[messageKeys.MANUAL_TIDE_STATION_ID];
+  delete dict[messageKeys.NEARBY_STATIONS];
 
   Pebble.sendAppMessage(dict,
     function () { console.log('HourCast: settings sent'); },
