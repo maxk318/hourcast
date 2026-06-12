@@ -214,6 +214,46 @@ function packIcon(isDay, cell) {
   return (isDay ? 0 : 100) + cell.state * 10 + cell.count;
 }
 
+var TIDE_STATIONS = [
+  // Northeast
+  {id: '8443970', name: 'Boston, MA',          lat: 42.3601, lon: -71.0516},
+  {id: '8518750', name: 'The Battery, NY',      lat: 40.6996, lon: -74.0142},
+  {id: '8531680', name: 'Sandy Hook, NJ',       lat: 40.4669, lon: -74.0097},
+  {id: '8534720', name: 'Atlantic City, NJ',    lat: 39.3558, lon: -74.4183},
+  // Mid-Atlantic / Southeast
+  {id: '8638610', name: 'Sewells Point, VA',    lat: 36.9468, lon: -76.3300},
+  {id: '8665530', name: 'Charleston, SC',       lat: 32.7817, lon: -79.9250},
+  {id: '8720218', name: 'Mayport, FL',          lat: 30.3983, lon: -81.4283},
+  {id: '8722670', name: 'Miami Beach, FL',      lat: 25.7617, lon: -80.1300},
+  {id: '8724580', name: 'Key West, FL',         lat: 24.5550, lon: -81.8067},
+  // Gulf Coast
+  {id: '8771450', name: 'Galveston, TX',        lat: 29.3100, lon: -94.7933},
+  {id: '8775870', name: 'Corpus Christi, TX',   lat: 27.6400, lon: -97.2167},
+  // West Coast
+  {id: '9410170', name: 'San Diego, CA',        lat: 32.7150, lon: -117.1733},
+  {id: '9410660', name: 'Los Angeles, CA',      lat: 33.7200, lon: -118.2717},
+  {id: '9413450', name: 'Monterey, CA',         lat: 36.6050, lon: -121.8883},
+  {id: '9414290', name: 'San Francisco, CA',    lat: 37.8067, lon: -122.4650},
+  {id: '9418767', name: 'Humboldt Bay, CA',     lat: 40.7683, lon: -124.2183},
+  {id: '9444900', name: 'Port Townsend, WA',    lat: 48.1133, lon: -122.7600},
+  {id: '9447130', name: 'Seattle, WA',          lat: 47.6017, lon: -122.3383},
+  // Hawaii / Alaska
+  {id: '1612340', name: 'Honolulu, HI',         lat: 21.3067, lon: -157.8650},
+  {id: '9452210', name: 'Juneau, AK',           lat: 58.2983, lon: -134.4117},
+];
+
+// Sort stations by distance from lat/lon and cache the 5 nearest in localStorage.
+// Called as soon as location is resolved so the settings dropdown is always current.
+function cacheNearbyStations(lat, lon) {
+  var sorted = TIDE_STATIONS.slice().sort(function (a, b) {
+    var da = (a.lat - lat) * (a.lat - lat) + (a.lon - lon) * (a.lon - lon);
+    var db = (b.lat - lat) * (b.lat - lat) + (b.lon - lon) * (b.lon - lon);
+    return da - db;
+  });
+  localStorage.setItem('hcNearbyStations', JSON.stringify(sorted.slice(0, 5)));
+  return sorted;
+}
+
 function sendTide(lat, lon) {
   // Fetch predicted water levels from NOAA for the nearest tide station.
   // Use yyyyMMdd dates (no time, no spaces) to avoid URL encoding issues.
@@ -225,41 +265,8 @@ function sendTide(lat, lon) {
   var today = noaaDay(now);
   var tomorrow = noaaDay(new Date(now.getTime() + 86400000));
 
-  var stations = [
-    // Northeast
-    {id: '8443970', name: 'Boston, MA',          lat: 42.3601, lon: -71.0516},
-    {id: '8518750', name: 'The Battery, NY',      lat: 40.6996, lon: -74.0142},
-    {id: '8531680', name: 'Sandy Hook, NJ',       lat: 40.4669, lon: -74.0097},
-    {id: '8534720', name: 'Atlantic City, NJ',    lat: 39.3558, lon: -74.4183},
-    // Mid-Atlantic / Southeast
-    {id: '8638610', name: 'Sewells Point, VA',    lat: 36.9468, lon: -76.3300},
-    {id: '8665530', name: 'Charleston, SC',       lat: 32.7817, lon: -79.9250},
-    {id: '8720218', name: 'Mayport, FL',          lat: 30.3983, lon: -81.4283},
-    {id: '8722670', name: 'Miami Beach, FL',      lat: 25.7617, lon: -80.1300},
-    {id: '8724580', name: 'Key West, FL',         lat: 24.5550, lon: -81.8067},
-    // Gulf Coast
-    {id: '8771450', name: 'Galveston, TX',        lat: 29.3100, lon: -94.7933},
-    {id: '8775870', name: 'Corpus Christi, TX',   lat: 27.6400, lon: -97.2167},
-    // West Coast
-    {id: '9410170', name: 'San Diego, CA',        lat: 32.7150, lon: -117.1733},
-    {id: '9410660', name: 'Los Angeles, CA',      lat: 33.7200, lon: -118.2717},
-    {id: '9413450', name: 'Monterey, CA',         lat: 36.6050, lon: -121.8883},
-    {id: '9414290', name: 'San Francisco, CA',    lat: 37.8067, lon: -122.4650},
-    {id: '9418767', name: 'Humboldt Bay, CA',     lat: 40.7683, lon: -124.2183},
-    {id: '9444900', name: 'Port Townsend, WA',    lat: 48.1133, lon: -122.7600},
-    {id: '9447130', name: 'Seattle, WA',          lat: 47.6017, lon: -122.3383},
-    // Hawaii / Alaska
-    {id: '1612340', name: 'Honolulu, HI',         lat: 21.3067, lon: -157.8650},
-    {id: '9452210', name: 'Juneau, AK',           lat: 58.2983, lon: -134.4117},
-  ];
-
-  // Sort all stations by distance, store 5 nearest for the settings dropdown
-  stations.sort(function (a, b) {
-    var da = (a.lat - lat) * (a.lat - lat) + (a.lon - lon) * (a.lon - lon);
-    var db = (b.lat - lat) * (b.lat - lat) + (b.lon - lon) * (b.lon - lon);
-    return da - db;
-  });
-  localStorage.setItem('hcNearbyStations', JSON.stringify(stations.slice(0, 5)));
+  // Sort and cache nearest stations (also updates the settings dropdown list)
+  var stations = cacheNearbyStations(lat, lon);
 
   var nearest = stations[0];
   if (!nearest) { console.log('HourCast: no tide stations available'); return; }
@@ -440,6 +447,7 @@ function fetchWeather() {
     var lat = parseFloat(manualLat), lon = parseFloat(manualLon);
     if (!isNaN(lat) && !isNaN(lon)) {
       updateCurrentLocation(lat, lon, true);
+      cacheNearbyStations(lat, lon);
       sendWeather(lat.toFixed(4), lon.toFixed(4));
       return;
     }
@@ -448,11 +456,13 @@ function fetchWeather() {
   navigator.geolocation.getCurrentPosition(
     function (pos) {
       updateCurrentLocation(pos.coords.latitude, pos.coords.longitude, false);
+      cacheNearbyStations(pos.coords.latitude, pos.coords.longitude);
       sendWeather(pos.coords.latitude.toFixed(4), pos.coords.longitude.toFixed(4));
     },
     function (err) {
       console.log('HourCast: geolocation failed (' + err.message + '); using fallback');
       updateCurrentLocation(LAT_FALLBACK, LON_FALLBACK, false);
+      cacheNearbyStations(LAT_FALLBACK, LON_FALLBACK);
       sendWeather(LAT_FALLBACK, LON_FALLBACK);
     },
     { timeout: 15000, maximumAge: 60000 });

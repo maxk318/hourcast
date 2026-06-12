@@ -35,10 +35,11 @@ module.exports = function (minified) {
       var nearby = JSON.parse(localStorage.getItem('hcNearbyStations')) || [];
       if (nearby.length) {
         var stationItem = clayConfig.getItemByMessageKey('MANUAL_TIDE_STATION_ID');
-        // Use the component's id attribute to find the select in the page DOM
-        var selectEl = document.querySelector('#manualTideStation select');
-        if (selectEl) {
+        // Use minified to find the <select> within the item's root element
+        var $sel = minified('select', stationItem.$element);
+        if ($sel.length) {
           var savedVal = stationItem.setting;
+          var selectEl = $sel[0];
           selectEl.innerHTML = '';
           nearby.forEach(function (s, i) {
             var opt = document.createElement('option');
