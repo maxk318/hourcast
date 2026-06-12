@@ -45,7 +45,6 @@
         "messageKey": "MANUAL_TIDE_STATION_ID",
         "id": "manualTideStation",
         "label": "Station",
-        "defaultValue": "8443970",
         "options": [
           {"label": "Boston, MA",          "value": "8443970"},
           {"label": "The Battery, NY",      "value": "8518750"},

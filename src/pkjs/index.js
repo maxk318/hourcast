@@ -261,23 +261,29 @@ function sendTide(lat, lon) {
   });
   localStorage.setItem('hcNearbyStations', JSON.stringify(stations.slice(0, 5)));
 
-  // Determine which station to use: manual override if set, else nearest
-  var best = stations[0];
+  var nearest = stations[0];
+  if (!nearest) { console.log('HourCast: no tide stations available'); return; }
+
+  // Nearest station field always reflects the auto-detected closest, not the override
+  setClaySetting('TIDE_STATION', nearest.name);
+
+  // Read manual settings
   var cs = {};
   try { cs = JSON.parse(localStorage.getItem('clay-settings')) || {}; } catch (e) {}
+
+  // Pre-populate the dropdown with the nearest station when manual mode is off,
+  // so it starts from a sensible selection if the user enables manual mode
+  if (!cs.USE_MANUAL_TIDE) setClaySetting('MANUAL_TIDE_STATION_ID', nearest.id);
+
+  // Determine which station to actually fetch data for
+  var best = nearest;
   if (cs.USE_MANUAL_TIDE && cs.MANUAL_TIDE_STATION_ID) {
     for (var si = 0; si < stations.length; si++) {
       if (stations[si].id === cs.MANUAL_TIDE_STATION_ID) { best = stations[si]; break; }
     }
   }
 
-  if (!best) {
-    console.log('HourCast: no tide stations available');
-    return;
-  }
-
   console.log('HourCast: using tide station ' + best.name + ' (' + best.id + ')');
-  setClaySetting('TIDE_STATION', best.name);
 
   // predictions product, datum MLLW, GMT, two full UTC days to cover any hour window
   var tideUrl = 'https://api.tidesandcurrents.noaa.gov/api/prod/datagetter?station=' + best.id +
