@@ -242,15 +242,17 @@ var TIDE_STATIONS = [
   {id: '9452210', name: 'Juneau, AK',           lat: 58.2983, lon: -134.4117},
 ];
 
-// Sort stations by distance from lat/lon and cache the 5 nearest in localStorage.
-// Called as soon as location is resolved so the settings dropdown is always current.
+// Sort stations by distance and store the 5 nearest in clay-settings under
+// NEARBY_STATIONS. Clay serializes clay-settings into the config page URL, so
+// this key is readable from custom-clay.js in the webview (unlike plain localStorage,
+// which is a separate context the webview cannot access).
 function cacheNearbyStations(lat, lon) {
   var sorted = TIDE_STATIONS.slice().sort(function (a, b) {
     var da = (a.lat - lat) * (a.lat - lat) + (a.lon - lon) * (a.lon - lon);
     var db = (b.lat - lat) * (b.lat - lat) + (b.lon - lon) * (b.lon - lon);
     return da - db;
   });
-  localStorage.setItem('hcNearbyStations', JSON.stringify(sorted.slice(0, 5)));
+  setClaySetting('NEARBY_STATIONS', JSON.stringify(sorted.slice(0, 5)));
   return sorted;
 }
 

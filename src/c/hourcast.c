@@ -516,49 +516,49 @@ static GColor rock_color(int x, int y) {
   return GColorDarkGray;                 // 75% stone face
 }
 
-// A blue tank centered at c: rounded bottom corners, wavy top,
+// A blue tank centered at c: rounded top corners, wavy bottom surface,
 // rocky harbor border, sub-surface shadow wave.
 static void draw_tide_cell(GContext *ctx, GPoint c, int S, int pct, int32_t phase) {
   int x0 = c.x - S / 2, x1 = c.x + S / 2;
   int top = c.y - S / 2, bottom = c.y + S / 2;
   int amp = S / 8; if (amp < 2) amp = 2;
-  int mean = bottom - (pct * S) / 100;
+  int mean = top + (pct * S) / 100;  // water fills from top down
   int width = x1 - x0; if (width < 1) width = 1;
   int sub = amp + 3;
 
   graphics_context_set_stroke_width(ctx, 1);
 
-  // 1. Blue water fill with rounded bottom corners
+  // 1. Blue water fill with rounded top corners
   graphics_context_set_stroke_color(ctx, GColorBlueMoon);
   for (int x = x0; x <= x1; x++) {
-    // Rounded corner: raise the effective bottom near left/right edges
-    int eff_bottom = bottom;
+    // Rounded corner: lower the effective top near left/right edges
+    int eff_top = top;
     int dl = x - x0, dr = x1 - x;
     if (dl < CORNER_R) {
       int d = CORNER_R - dl;
-      eff_bottom = bottom - CORNER_CUT[d - 1];
+      eff_top = top + CORNER_CUT[d - 1];
     } else if (dr < CORNER_R) {
       int d = CORNER_R - dr;
-      eff_bottom = bottom - CORNER_CUT[d - 1];
+      eff_top = top + CORNER_CUT[d - 1];
     }
     int32_t ang = (int32_t)(x - x0) * TRIG_MAX_ANGLE / width + phase;
-    int surf = mean - (amp * sin_lookup(ang)) / TRIG_MAX_RATIO;
-    if (surf < top)        surf = top;
-    if (surf < eff_bottom) graphics_draw_line(ctx, GPoint(x, surf), GPoint(x, eff_bottom));
+    int surf = mean + (amp * sin_lookup(ang)) / TRIG_MAX_RATIO;  // wave at bottom of water
+    if (surf > bottom) surf = bottom;
+    if (surf > eff_top) graphics_draw_line(ctx, GPoint(x, eff_top), GPoint(x, surf));
   }
 
-  // 2. Sub-surface shadow wave (black), same curve shifted down
+  // 2. Sub-surface shadow wave (black), same curve shifted up into the water
   graphics_context_set_stroke_color(ctx, GColorBlack);
   for (int x = x0; x <= x1; x++) {
     int32_t ang = (int32_t)(x - x0) * TRIG_MAX_ANGLE / width + phase;
-    int surf = mean - (amp * sin_lookup(ang)) / TRIG_MAX_RATIO;
-    int sy = surf + sub;
+    int surf = mean + (amp * sin_lookup(ang)) / TRIG_MAX_RATIO;
+    int sy = surf - sub;
     if (sy > top && sy < bottom) graphics_draw_pixel(ctx, GPoint(x, sy));
   }
 
   // 3. Rocky border: 2px wide — outer pixel + inner pixel encroaching on water
-  // Side walls stop CORNER_R px above bottom to expose the rounded corners
-  for (int y = top; y <= bottom - CORNER_R; y++) {
+  // Side walls skip the top CORNER_R rows to expose the rounded corners
+  for (int y = top + CORNER_R; y <= bottom; y++) {
     graphics_context_set_stroke_color(ctx, rock_color(x0 - 1, y));
     graphics_draw_pixel(ctx, GPoint(x0 - 1, y));
     graphics_context_set_stroke_color(ctx, rock_color(x0, y));
@@ -568,12 +568,12 @@ static void draw_tide_cell(GContext *ctx, GPoint c, int S, int pct, int32_t phas
     graphics_context_set_stroke_color(ctx, rock_color(x1, y));
     graphics_draw_pixel(ctx, GPoint(x1, y));
   }
-  // Bottom wall: outer row + inner row encroaching on water
+  // Top wall: outer row + inner row encroaching on water
   for (int x = x0 + CORNER_R; x <= x1 - CORNER_R; x++) {
-    graphics_context_set_stroke_color(ctx, rock_color(x, bottom + 1));
-    graphics_draw_pixel(ctx, GPoint(x, bottom + 1));
-    graphics_context_set_stroke_color(ctx, rock_color(x, bottom));
-    graphics_draw_pixel(ctx, GPoint(x, bottom));
+    graphics_context_set_stroke_color(ctx, rock_color(x, top - 1));
+    graphics_draw_pixel(ctx, GPoint(x, top - 1));
+    graphics_context_set_stroke_color(ctx, rock_color(x, top));
+    graphics_draw_pixel(ctx, GPoint(x, top));
   }
 }
 

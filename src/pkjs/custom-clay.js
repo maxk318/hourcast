@@ -1,6 +1,10 @@
 // Clay custom function (runs inside the configuration webview).
 // Handles show/hide of manual-location and manual-tide-station inputs,
-// and sorts the station dropdown by distance using hcNearbyStations from localStorage.
+// and sorts the station dropdown nearest-to-farthest.
+//
+// Note: index.js (PebbleKit JS context) and this webview have separate
+// localStorage. Shared data must go through clay-settings, which Clay
+// serializes into the config URL so it's readable here.
 module.exports = function (minified) {
   var clayConfig = this;
 
@@ -20,7 +24,7 @@ module.exports = function (minified) {
   }
 
   clayConfig.on(clayConfig.EVENTS.AFTER_BUILD, function () {
-    var manualLoc  = clayConfig.getItemByMessageKey('USE_MANUAL_LOC');
+    var manualLoc = clayConfig.getItemByMessageKey('USE_MANUAL_LOC');
     toggleManualLoc.call(manualLoc);
     manualLoc.on('change', toggleManualLoc);
 
@@ -28,14 +32,14 @@ module.exports = function (minified) {
     toggleManualTide.call(manualTide);
     manualTide.on('change', toggleManualTide);
 
-    // Replace station dropdown options with the nearest-to-farthest list from
-    // the last weather fetch. Falls back to the full static list in config.json
-    // if localStorage hasn't been populated yet.
+    // Replace static station options with the 5 nearest sorted by distance.
+    // NEARBY_STATIONS is written by index.js via setClaySetting(), which puts
+    // it in clay-settings — the one data store Clay passes into the webview.
     try {
-      var nearby = JSON.parse(localStorage.getItem('hcNearbyStations')) || [];
+      var cs = JSON.parse(localStorage.getItem('clay-settings')) || {};
+      var nearby = JSON.parse(cs.NEARBY_STATIONS || '[]');
       if (nearby.length) {
         var stationItem = clayConfig.getItemByMessageKey('MANUAL_TIDE_STATION_ID');
-        // Use minified to find the <select> within the item's root element
         var $sel = minified('select', stationItem.$element);
         if ($sel.length) {
           var savedVal = stationItem.setting;
@@ -50,6 +54,6 @@ module.exports = function (minified) {
           selectEl.value = savedVal || nearby[0].id;
         }
       }
-    } catch (e) { /* leave static options intact */ }
+    } catch (e) { /* leave static fallback options intact */ }
   });
 };
