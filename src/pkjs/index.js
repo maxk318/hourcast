@@ -8,7 +8,11 @@
 var Clay = require('pebble-clay');
 var clayConfig = require('./config.json');
 var customClay = require('./custom-clay');
-var clay = new Clay(clayConfig, customClay);
+// autoHandleEvents:false — we handle 'webviewclosed' ourselves below. Clay's
+// default auto-handler would ALSO fire on save and race our sendAppMessage
+// with one of its own (sending DISPLAY_MODE as a raw string instead of an
+// int), corrupting the watch's settings intermittently.
+var clay = new Clay(clayConfig, customClay, { autoHandleEvents: false });
 var messageKeys = require('message_keys');
 
 // Location settings (persisted in pkjs localStorage so they survive relaunch).
@@ -113,6 +117,11 @@ function updateCurrentLocation(lat, lon, manual) {
     '?latitude=' + lat + '&longitude=' + lon + '&localityLanguage=en');
   xhr.send();
 }
+
+// Open the settings page (normally handled by Clay's autoHandleEvents).
+Pebble.addEventListener('showConfiguration', function () {
+  Pebble.openURL(clay.generateUrl());
+});
 
 // When the settings page is saved: store the location prefs, forward all
 // settings to the watch, then refresh weather with the new location.
