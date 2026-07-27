@@ -37,9 +37,8 @@ static int    s_sunrise_k = -1, s_sunset_k = -1;       // slots that show a time
 static char   s_sunrise_str[8] = "", s_sunset_str[8] = "";
 // display mode: 0 = inner numerals (temp on each icon),
 //               1 = hash marks + bigger icons (temp on each icon),
-//               2 = temps on the inner ring (icons uncovered, spotted moons)
-//               3 = none: clean inner ring, bigger icons (like hash, no ticks)
-enum { MODE_NUMERALS = 0, MODE_HASH = 1, MODE_TEMPS = 2, MODE_NONE = 3 };
+//               2 = none: clean inner ring, bigger icons (like hash, no ticks)
+enum { MODE_NUMERALS = 0, MODE_HASH = 1, MODE_NONE = 2 };
 static int    s_display_mode = MODE_NUMERALS;      // setting: default inner-ring style
 
 // Tide: a blue "tank" drawn behind each inner-ring slot, filled to that hour's
@@ -47,7 +46,24 @@ static int    s_display_mode = MODE_NUMERALS;      // setting: default inner-rin
 // enables it and the phone found a nearby tide station.
 static uint8_t s_tide[12];
 static bool    s_tide_valid = false;   // phone has tide data (nearby station)
+static int     s_tide_hi_k = -1, s_tide_lo_k = -1;   // slots showing a tide time
+static char    s_tide_hi_str[8] = "", s_tide_lo_str[8] = "";
 static bool    s_show_tide = false;    // setting: draw the tide tanks
+
+// If clock slot k is this tide's next high or low, copies its time string
+// ("3:50") into buf and returns true — used to swap out the plain hour
+// numeral/hash tick for the tide time, the same way sunrise/sunset swap out
+// the temp badge on the icon ring.
+static bool tide_event_str(int k, char *buf, size_t buflen) {
+  if (!s_show_tide || !s_tide_valid) return false;
+  if (k == s_tide_hi_k && s_tide_hi_str[0]) {
+    strncpy(buf, s_tide_hi_str, buflen - 1); buf[buflen - 1] = '\0'; return true;
+  }
+  if (k == s_tide_lo_k && s_tide_lo_str[0]) {
+    strncpy(buf, s_tide_lo_str, buflen - 1); buf[buflen - 1] = '\0'; return true;
+  }
+  return false;
+}
 static bool    s_show_date = true;     // setting: show date badge at 5 o'clock
 static bool    s_show_battery = true;  // setting: show battery badge always
 static int     s_battery_threshold = 15; // setting: also show battery when under this %
@@ -90,46 +106,24 @@ static void load_moon_phase(int p) {
   if (p == s_loaded_phase) return;
   if (s_moon_ring) gbitmap_destroy(s_moon_ring);
   if (s_moon_ctr)  gbitmap_destroy(s_moon_ctr);
-  // ring moon set depends on the mode: clean 42 (numerals), clean 46 (hash),
-  // or the spotted 42 (temps mode, where the moon isn't covered by a temp).
-  const uint32_t mr_sm[10] = { RESOURCE_ID_MOON_RING_0, RESOURCE_ID_MOON_RING_1, RESOURCE_ID_MOON_RING_2,
-    RESOURCE_ID_MOON_RING_3, RESOURCE_ID_MOON_RING_4, RESOURCE_ID_MOON_RING_5, RESOURCE_ID_MOON_RING_6,
-    RESOURCE_ID_MOON_RING_7, RESOURCE_ID_MOON_RING_8, RESOURCE_ID_MOON_RING_9 };
   const uint32_t mr_xl[10] = { RESOURCE_ID_MOON_XL_0, RESOURCE_ID_MOON_XL_1, RESOURCE_ID_MOON_XL_2,
     RESOURCE_ID_MOON_XL_3, RESOURCE_ID_MOON_XL_4, RESOURCE_ID_MOON_XL_5, RESOURCE_ID_MOON_XL_6,
     RESOURCE_ID_MOON_XL_7, RESOURCE_ID_MOON_XL_8, RESOURCE_ID_MOON_XL_9 };
-  const uint32_t mr_sp[10] = { RESOURCE_ID_MOON_SP_0, RESOURCE_ID_MOON_SP_1, RESOURCE_ID_MOON_SP_2,
-    RESOURCE_ID_MOON_SP_3, RESOURCE_ID_MOON_SP_4, RESOURCE_ID_MOON_SP_5, RESOURCE_ID_MOON_SP_6,
-    RESOURCE_ID_MOON_SP_7, RESOURCE_ID_MOON_SP_8, RESOURCE_ID_MOON_SP_9 };
-  // Clock Numbers + Hashes share the bigger XL (spotted) moon; Temperature
-  // uses the 42px spotted moon to match its smaller icons.
-  const uint32_t *mr = (s_display_mode == MODE_TEMPS) ? mr_sp : mr_xl;
-  (void)mr_sm;
   const uint32_t mc[10] = { RESOURCE_ID_MOON_CTR_0, RESOURCE_ID_MOON_CTR_1, RESOURCE_ID_MOON_CTR_2,
     RESOURCE_ID_MOON_CTR_3, RESOURCE_ID_MOON_CTR_4, RESOURCE_ID_MOON_CTR_5, RESOURCE_ID_MOON_CTR_6,
     RESOURCE_ID_MOON_CTR_7, RESOURCE_ID_MOON_CTR_8, RESOURCE_ID_MOON_CTR_9 };
-  s_moon_ring = gbitmap_create_with_resource(mr[p]);
+  s_moon_ring = gbitmap_create_with_resource(mr_xl[p]);
   s_moon_ctr  = gbitmap_create_with_resource(mc[p]);
   s_loaded_phase = p;
 }
 
 static void load_weather_icons(void) {
-  // Clock Numbers + Hashes use the bigger 46px XL ring icons; Temperature 42px.
-  bool big = (s_display_mode != MODE_TEMPS);
-  s_sun_ring = gbitmap_create_with_resource(
-      big ? RESOURCE_ID_WX_CLEAR_DAY_XL : RESOURCE_ID_WX_CLEAR_DAY);
+  s_sun_ring = gbitmap_create_with_resource(RESOURCE_ID_WX_CLEAR_DAY_XL);
   s_sun_ctr  = gbitmap_create_with_resource(RESOURCE_ID_WX_CLEAR_DAY_LG);
-  if (big) {
-    s_ov_ring[0] = gbitmap_create_with_resource(RESOURCE_ID_OV_PARTLY_XL);
-    s_ov_ring[1] = gbitmap_create_with_resource(RESOURCE_ID_OV_OVERCAST_XL);
-    s_ov_ring[2] = gbitmap_create_with_resource(RESOURCE_ID_OV_PRECIP_XL);
-    s_flake_ring = gbitmap_create_with_resource(RESOURCE_ID_FLAKE_XL);
-  } else {
-    s_ov_ring[0] = gbitmap_create_with_resource(RESOURCE_ID_OV_PARTLY_RING);
-    s_ov_ring[1] = gbitmap_create_with_resource(RESOURCE_ID_OV_OVERCAST_RING);
-    s_ov_ring[2] = gbitmap_create_with_resource(RESOURCE_ID_OV_PRECIP_RING);
-    s_flake_ring = gbitmap_create_with_resource(RESOURCE_ID_FLAKE_RING);
-  }
+  s_ov_ring[0] = gbitmap_create_with_resource(RESOURCE_ID_OV_PARTLY_XL);
+  s_ov_ring[1] = gbitmap_create_with_resource(RESOURCE_ID_OV_OVERCAST_XL);
+  s_ov_ring[2] = gbitmap_create_with_resource(RESOURCE_ID_OV_PRECIP_XL);
+  s_flake_ring = gbitmap_create_with_resource(RESOURCE_ID_FLAKE_XL);
   s_ov_ctr[0] = gbitmap_create_with_resource(RESOURCE_ID_OV_PARTLY_CTR);
   s_ov_ctr[1] = gbitmap_create_with_resource(RESOURCE_ID_OV_OVERCAST_CTR);
   s_ov_ctr[2] = gbitmap_create_with_resource(RESOURCE_ID_OV_PRECIP_CTR);
@@ -297,24 +291,17 @@ static void draw_badge_circle(GContext *ctx, GPoint c, const char *txt, GColor t
 // Hourly ring: each position is a bigger weather icon with its temp on a
 // circle in the middle (same treatment as the center). Icons hug the screen
 // edge (placed on the true clock radial, inset by ~half the 42px icon).
-#define ICON_EDGE_INSET 22
 static void draw_icon_ring(GContext *ctx, GPoint center, int hw, int hh) {
   time_t now = time(NULL);
   struct tm *t = localtime(&now);
-  // Clock Numbers + Hashes -> 46px icons (half 23); Temperature -> 42px
-  int inset = (s_display_mode == MODE_TEMPS) ? ICON_EDGE_INSET : 23;
   // start slot comes from the companion (location-correct); fall back to watch time
   int start_k = (s_start_k >= 0) ? s_start_k : ((t->tm_hour + 1) % 12);
   for (int k = 0; k < 12; k++) {
     if (!s_wx_valid[k]) continue;
     int32_t angle = TRIG_MAX_ANGLE * k / 12;
-    GPoint iconp = point_on_rect(center, hw - inset, hh - inset, angle);
+    GPoint iconp = point_on_rect(center, hw - 23, hh - 23, angle);
 
     draw_wx(ctx, iconp, s_wx[k], false);
-
-    // In temps mode the temperature lives on the inner ring, so leave the icon
-    // uncovered here. Modes 0/1 keep the temp (or sunrise/sunset) on the icon.
-    if (s_display_mode == MODE_TEMPS) continue;
 
     char buf[8];
     GColor col = (k == start_k) ? GColorGreen : GColorWhite;
@@ -331,9 +318,6 @@ static void draw_icon_ring(GContext *ctx, GPoint center, int hw, int hh) {
 
 // Hour numerals 1-12 on the INNER ring.
 #define NUM_RING_PCT 52          // pulled in slightly from the icons
-#define TEMP_ICON_INSET 32       // mode 2: temps sit this far inside their icon
-                                 // (rectangle-aware: top/bottom icons are farther
-                                 // out, so their temps sit farther out too)
 static void draw_hour_numerals(GContext *ctx, GPoint center, int hw, int hh) {
   GFont font = fonts_get_system_font(FONT_KEY_GOTHIC_18_BOLD);
   for (int h = 1; h <= 12; h++) {
@@ -341,47 +325,13 @@ static void draw_hour_numerals(GContext *ctx, GPoint center, int hw, int hh) {
     GPoint edge = point_on_rect(center, hw, hh, angle);
     GPoint p = GPoint(center.x + (edge.x - center.x) * NUM_RING_PCT / 100,
                       center.y + (edge.y - center.y) * NUM_RING_PCT / 100);
-    char buf[3];
-    snprintf(buf, sizeof(buf), "%d", h);
+    char buf[8];
+    if (!tide_event_str(h % 12, buf, sizeof(buf))) {
+      snprintf(buf, sizeof(buf), "%d", h);
+    }
     GSize sz = graphics_text_layout_get_content_size(
         buf, font, GRect(0, 0, 40, 40), GTextOverflowModeFill, GTextAlignmentCenter);
     draw_text_outlined(ctx, buf, font, GRect(p.x - 20, p.y - sz.h / 2 - 3, 40, sz.h), GColorWhite);
-  }
-}
-
-// Temps on the INNER ring (mode 2): the hourly temperature (or sunrise/sunset
-// time) where the numerals would be, with 12/3/6/9 bold. This frees the outer
-// icons so the (spotted) moons show uncovered.
-static void draw_temp_ring(GContext *ctx, GPoint center, int hw, int hh) {
-  time_t now = time(NULL);
-  struct tm *t = localtime(&now);
-  int start_k = (s_start_k >= 0) ? s_start_k : ((t->tm_hour + 1) % 12);
-  GFont bold = fonts_get_system_font(FONT_KEY_GOTHIC_18_BOLD);
-  GFont reg  = fonts_get_system_font(FONT_KEY_GOTHIC_18);
-  for (int k = 0; k < 12; k++) {
-    if (!s_wx_valid[k]) continue;
-    int32_t angle = TRIG_MAX_ANGLE * k / 12;
-    int32_t dxk = sin_lookup(angle), dyk = -cos_lookup(angle);
-    // sit a constant gap inside this slot's icon -> follows the rectangle, so
-    // top/bottom temps land farther out than the narrow 3/9 sides (no overlap).
-    GPoint ic = point_on_rect(center, hw - ICON_EDGE_INSET, hh - ICON_EDGE_INSET, angle);
-    int icon_dist = ((ic.x - center.x) * dxk + (ic.y - center.y) * dyk) / TRIG_MAX_RATIO;
-    int temp_dist = icon_dist - TEMP_ICON_INSET;
-    GPoint p = GPoint(center.x + dxk * temp_dist / TRIG_MAX_RATIO,
-                      center.y + dyk * temp_dist / TRIG_MAX_RATIO);
-    char buf[8];
-    GColor col = (k == start_k) ? GColorGreen : GColorWhite;
-    if (k == s_sunrise_k && s_sunrise_str[0]) {
-      strncpy(buf, s_sunrise_str, sizeof(buf) - 1); buf[sizeof(buf) - 1] = '\0';
-    } else if (k == s_sunset_k && s_sunset_str[0]) {
-      strncpy(buf, s_sunset_str, sizeof(buf) - 1); buf[sizeof(buf) - 1] = '\0';
-    } else {
-      snprintf(buf, sizeof(buf), "%d", s_wx_temp[k]);
-    }
-    GFont font = (k % 3 == 0) ? bold : reg;   // 12/3/6/9 bold
-    GSize sz = graphics_text_layout_get_content_size(
-        buf, font, GRect(0, 0, 40, 40), GTextOverflowModeFill, GTextAlignmentCenter);
-    draw_text_outlined(ctx, buf, font, GRect(p.x - 20, p.y - sz.h / 2 - 3, 40, sz.h), col);
   }
 }
 
@@ -395,6 +345,21 @@ static void draw_temp_ring(GContext *ctx, GPoint center, int hw, int hh) {
 static void draw_hash_ticks(GContext *ctx, GPoint center, int hw, int hh) {
   for (int k = 0; k < 12; k++) {
     int32_t angle = TRIG_MAX_ANGLE * k / 12;
+
+    // A tide time takes this slot's tick over entirely, same treatment (and
+    // ring radius) as the hour numerals get in that mode.
+    char tbuf[8];
+    if (tide_event_str(k, tbuf, sizeof(tbuf))) {
+      GFont font = fonts_get_system_font(FONT_KEY_GOTHIC_18_BOLD);
+      GPoint edge = point_on_rect(center, hw, hh, angle);
+      GPoint p = GPoint(center.x + (edge.x - center.x) * NUM_RING_PCT / 100,
+                        center.y + (edge.y - center.y) * NUM_RING_PCT / 100);
+      GSize sz = graphics_text_layout_get_content_size(
+          tbuf, font, GRect(0, 0, 40, 40), GTextOverflowModeFill, GTextAlignmentCenter);
+      draw_text_outlined(ctx, tbuf, font, GRect(p.x - 20, p.y - sz.h / 2 - 3, 40, sz.h), GColorWhite);
+      continue;
+    }
+
     int32_t dx = sin_lookup(angle), dy = -cos_lookup(angle);
     bool major = (k % 3 == 0);                 // 12, 3, 6, 9
     int len = major ? 13 : 7;
@@ -419,9 +384,26 @@ static void draw_hash_ticks(GContext *ctx, GPoint center, int hw, int hh) {
   }
 }
 
-// Minute hand stops just inside the icon ring (icons sit at ICON_EDGE_INSET 22
-// + half the 42px icon ≈ 43 from the edge), so it passes through the numerals
-// but short of the icons.
+// MODE_NONE: the inner ring is otherwise blank, but a tide hi/lo time still
+// shows, at the same spot the numerals/hash marks would put it.
+static void draw_tide_labels(GContext *ctx, GPoint center, int hw, int hh) {
+  GFont font = fonts_get_system_font(FONT_KEY_GOTHIC_18_BOLD);
+  for (int k = 0; k < 12; k++) {
+    char buf[8];
+    if (!tide_event_str(k, buf, sizeof(buf))) continue;
+    int32_t angle = TRIG_MAX_ANGLE * k / 12;
+    GPoint edge = point_on_rect(center, hw, hh, angle);
+    GPoint p = GPoint(center.x + (edge.x - center.x) * NUM_RING_PCT / 100,
+                      center.y + (edge.y - center.y) * NUM_RING_PCT / 100);
+    GSize sz = graphics_text_layout_get_content_size(
+        buf, font, GRect(0, 0, 40, 40), GTextOverflowModeFill, GTextAlignmentCenter);
+    draw_text_outlined(ctx, buf, font, GRect(p.x - 20, p.y - sz.h / 2 - 3, 40, sz.h), GColorWhite);
+  }
+}
+
+// Minute hand stops just inside the icon ring (icons sit at inset 23 + half
+// the 46px icon ≈ 46 from the edge), so it passes through the numerals but
+// short of the icons.
 #define HOUR_HAND_FRAC  50   // hour hand: fixed circular length (% of min half)
 #define MIN_EDGE_INSET  32   // minute hand: dynamic, reaching further toward the edge
 static void draw_hands(GContext *ctx, GPoint center, int half, int hw, int hh) {
@@ -612,9 +594,8 @@ static void face_update_proc(Layer *layer, GContext *ctx) {
     draw_hour_numerals(ctx, center, hw, hh); // inner ring: hour numerals
   else if (s_display_mode == MODE_HASH)
     draw_hash_ticks(ctx, center, hw, hh);    // inner ring: major/minor hash marks
-  else if (s_display_mode == MODE_TEMPS)
-    draw_temp_ring(ctx, center, hw, hh);     // inner ring: temperatures (12/3/6/9 bold)
-  // MODE_NONE: nothing drawn on the inner ring
+  else
+    draw_tide_labels(ctx, center, hw, hh);   // MODE_NONE: clean ring except tide times
   draw_center_weather(ctx, center);
   if (s_show_date)    draw_day_badge(ctx, center);
   {
@@ -685,7 +666,7 @@ static uint8_t cell_to_code(WxCell w) {
 
 // Persist the last weather so a relaunch shows it instantly (no placeholder flash).
 #define PERSIST_WX  1
-#define PERSIST_VER 4   // bumped: added per-slot tide data
+#define PERSIST_VER 5   // bumped: added tide hi/lo time slots
 typedef struct __attribute__((__packed__)) {
   uint8_t  ver;
   uint8_t  icon[12];
@@ -702,6 +683,10 @@ typedef struct __attribute__((__packed__)) {
   char     sunset[8];
   uint8_t  tide[12];
   uint8_t  tide_valid;
+  int8_t   tide_hi_k;
+  int8_t   tide_lo_k;
+  char     tide_hi[8];
+  char     tide_lo[8];
 } WxPersist;
 
 static void save_weather(void) {
@@ -724,6 +709,10 @@ static void save_weather(void) {
   strncpy(p.sunset, s_sunset_str, sizeof(p.sunset) - 1);
   for (int k = 0; k < 12; k++) p.tide[k] = s_tide[k];
   p.tide_valid = s_tide_valid ? 1 : 0;
+  p.tide_hi_k = (int8_t)s_tide_hi_k;
+  p.tide_lo_k = (int8_t)s_tide_lo_k;
+  strncpy(p.tide_hi, s_tide_hi_str, sizeof(p.tide_hi) - 1);
+  strncpy(p.tide_lo, s_tide_lo_str, sizeof(p.tide_lo) - 1);
   persist_write_data(PERSIST_WX, &p, sizeof(p));
 }
 
@@ -756,6 +745,10 @@ static void load_weather(void) {
   strncpy(s_sunset_str, p.sunset, sizeof(s_sunset_str) - 1);
   for (int k = 0; k < 12; k++) s_tide[k] = p.tide[k];
   s_tide_valid = p.tide_valid ? 1 : 0;
+  s_tide_hi_k = p.tide_hi_k;
+  s_tide_lo_k = p.tide_lo_k;
+  strncpy(s_tide_hi_str, p.tide_hi, sizeof(s_tide_hi_str) - 1);
+  strncpy(s_tide_lo_str, p.tide_lo, sizeof(s_tide_lo_str) - 1);
 }
 
 static void inbox_received(DictionaryIterator *iter, void *context) {
@@ -845,8 +838,23 @@ static void inbox_received(DictionaryIterator *iter, void *context) {
     Tuple *tt = dict_find(iter, TIDE_KEYS[k]);
     if (tt) s_tide[k] = tt->value->uint32;
   }
+  // Reset the tide hi/lo slots only when a new tide payload arrives (mirrors
+  // the sunrise/sunset reset gated on START_K above) — a settings-only message
+  // must not clobber them.
+  if (dict_find(iter, MESSAGE_KEY_TIDE_VALID)) {
+    s_tide_hi_k = -1; s_tide_lo_k = -1;
+    s_tide_hi_str[0] = '\0'; s_tide_lo_str[0] = '\0';
+  }
   Tuple *tv = dict_find(iter, MESSAGE_KEY_TIDE_VALID);
   if (tv) s_tide_valid = tv->value->uint32 ? true : false;
+  Tuple *thk = dict_find(iter, MESSAGE_KEY_TIDE_HI_K);
+  if (thk) s_tide_hi_k = thk->value->int32;
+  Tuple *tlk = dict_find(iter, MESSAGE_KEY_TIDE_LO_K);
+  if (tlk) s_tide_lo_k = tlk->value->int32;
+  Tuple *ths = dict_find(iter, MESSAGE_KEY_TIDE_HI_STR);
+  if (ths) { strncpy(s_tide_hi_str, ths->value->cstring, sizeof(s_tide_hi_str) - 1); }
+  Tuple *tls = dict_find(iter, MESSAGE_KEY_TIDE_LO_STR);
+  if (tls) { strncpy(s_tide_lo_str, tls->value->cstring, sizeof(s_tide_lo_str) - 1); }
 
   save_weather();   // remember for next launch
   if (s_face_layer) layer_mark_dirty(s_face_layer);

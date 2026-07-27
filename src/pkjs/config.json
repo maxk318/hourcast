@@ -10,12 +10,11 @@
         "messageKey": "DISPLAY_MODE",
         "label": "Inner Ring",
         "defaultValue": "0",
-        "description": "What to show on the inner ring. Clock Numbers: hour numerals. Hashes: tick marks with larger weather icons. Temperature: hourly temps, uncovering the weather icons and moons.",
+        "description": "What to show on the inner ring. Clock Numbers: hour numerals. Hashes: tick marks with larger weather icons. None: clean ring with larger weather icons. Tide highs/lows still show in any mode.",
         "options": [
           { "label": "Clock Numbers", "value": "0" },
           { "label": "Hashes", "value": "1" },
-          { "label": "Temperature", "value": "2" },
-          { "label": "None", "value": "3" }
+          { "label": "None", "value": "2" }
         ]
       },
       {
@@ -103,6 +102,20 @@
         "label": "Current location",
         "defaultValue": "Updates after a weather refresh",
         "attributes": { "readonly": "readonly" }
+      },
+      {
+        "type": "input",
+        "messageKey": "CURRENT_LAT",
+        "id": "currentLat",
+        "label": "Current latitude",
+        "defaultValue": ""
+      },
+      {
+        "type": "input",
+        "messageKey": "CURRENT_LON",
+        "id": "currentLon",
+        "label": "Current longitude",
+        "defaultValue": ""
       },
       {
         "type": "toggle",
